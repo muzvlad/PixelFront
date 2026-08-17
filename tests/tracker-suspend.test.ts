@@ -12,7 +12,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { FileTracker } from '../src/node.js';
+import { FileTracker } from '../src/core/trackers/file-tracker.js';
 import type { TrackEvent } from '../src/core/tracker.js';
 
 function mkEvent(i: number): TrackEvent {
@@ -49,6 +49,7 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
     expect(fs.existsSync(file)).toBe(false);
 
     t.resume!();
+    await t.close!();
 
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
     expect(lines.length).toBe(100);
@@ -56,8 +57,6 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
       const ev = JSON.parse(lines[i]!) as TrackEvent;
       expect(ev.duration_ms).toBe(i);
     }
-
-    t.close!();
   });
 
   it('writes buffered events to the canonical path after a mid-suspend rename', async () => {
@@ -67,12 +66,14 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
     // reopen-by-name lands writes on the canonical inode.
     const t = new FileTracker(file);
 
-    // Seed one event so the canonical file exists and the fd is open.
+    // Seed one event so the canonical file exists. suspend() tears down the
+    // stream, so by the time it resolves the seeded row is durable on disk.
     t.emit(mkEvent(-1));
     expect(fs.existsSync(file)).toBe(true);
-    const seeded = fs.readFileSync(file, 'utf8');
 
     await t.suspend!();
+    const seeded = fs.readFileSync(file, 'utf8');
+
     for (let i = 0; i < 50; i++) t.emit(mkEvent(i + 100));
 
     // Simulate prune(): rename the canonical file away, then create a
@@ -82,6 +83,7 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
     fs.writeFileSync(file, '');
 
     t.resume!();
+    await t.close!();
 
     // Orphan should contain ONLY the seeded event — the 50 buffered
     // events must NOT have leaked to the detached inode.
@@ -92,8 +94,6 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
     expect(lines.length).toBe(50);
     expect((JSON.parse(lines[0]!) as TrackEvent).duration_ms).toBe(100);
     expect((JSON.parse(lines[49]!) as TrackEvent).duration_ms).toBe(149);
-
-    t.close!();
   });
 
   it('caps the suspend queue at MAX_PENDING with drop-oldest overflow', async () => {
@@ -104,25 +104,24 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
     for (let i = 0; i < 6000; i++) t.emit(mkEvent(i));
 
     t.resume!();
+    await t.close!();
 
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
     expect(lines.length).toBeLessThanOrEqual(5000);
     expect(lines.length).toBeGreaterThan(0);
-
-    t.close!();
   });
 
-  it('resume is a no-op when not suspended', () => {
+  it('resume is a no-op when not suspended', async () => {
     const t = new FileTracker(file);
 
     // No suspend() called — resume() must early-return cleanly.
     expect(() => t.resume!()).not.toThrow();
 
     t.emit(mkEvent(0));
+    await t.close!();
+
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
     expect(lines.length).toBe(1);
-
-    t.close!();
   });
 
   it('emits after suspend close cleanly without leaving zombie fds', async () => {
@@ -132,7 +131,7 @@ describe('FileTracker suspend/resume (SPEC-002)', () => {
     t.resume!();
     // Now emit more after resume — must use the re-opened fd.
     for (let i = 5; i < 10; i++) t.emit(mkEvent(i));
-    t.close!();
+    await t.close!();
 
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
     expect(lines.length).toBe(10);

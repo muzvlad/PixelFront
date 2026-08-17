@@ -34,6 +34,7 @@ import {
 } from './dashboard.js';
 import { setActiveTracker } from './tracker-coordinator.js';
 import { validateConfig } from './config.js';
+import { FileTracker } from './core/trackers/file-tracker.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
  *  transform.ts; startup knobs cover deployment plus emergency GPT scope
@@ -646,196 +647,6 @@ async function handlePlaygroundCompress(
   }
 }
 
-// ---- FileTracker ----------------------------------------------------------
-
-/**
- * Append-only JSONL tracker with size-based rotation. One line per request.
- *
- * Node-only — uses node:fs. The Worker host uses tracker.JsonLogTracker with
- * console.log instead (Cloudflare ingests that as Workers Logs).
- *
- * Rotation: when the current file exceeds MAX_FILE_BYTES (100 MB by default),
- * it's renamed to `<path>.1` (overwriting any previous .1) and a fresh file
- * is opened. Keeps one generation of history; for longer retention pipe
- * the file off-host yourself.
- *
- * Failures here NEVER propagate — the proxy must keep serving requests even
- * if the disk is full or the path is unwritable.
- */
-// Exported for tests (SPEC-002). Production code uses the singleton
-// returned from main(); tests in tests/tracker-suspend.test.ts exercise
-// suspend/resume directly.
-export class FileTracker implements Tracker {
-  private fd: number | null = null;
-  private bytesWritten = 0;
-  private brokenLogged = false;
-  private static readonly MAX_FILE_BYTES = 100 * 1024 * 1024;
-  /** Hard cap for in-memory queue while suspended. Drops oldest on overflow. */
-  private static readonly MAX_PENDING = 5000;
-
-  /** While true, emit() buffers into `pending` instead of writing to fd. */
-  private suspended = false;
-  private pending: TrackEvent[] = [];
-  private droppedDuringSuspend = 0;
-  private suspendOverflowLogged = false;
-
-  constructor(private readonly filePath: string) {}
-
-  private ensureOpen(): boolean {
-    if (this.fd != null) return true;
-    try {
-      fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    } catch {
-      /* dir may already exist or be unmkable; openSync below will surface */
-    }
-    try {
-      const st = fs.statSync(this.filePath);
-      this.bytesWritten = st.size;
-    } catch {
-      this.bytesWritten = 0;
-    }
-    try {
-      this.fd = fs.openSync(this.filePath, 'a');
-      return true;
-    } catch (err) {
-      if (!this.brokenLogged) {
-        console.error(
-          `[pxpipe] FileTracker disabled — cannot open ${this.filePath}: ${(err as Error).message}`,
-        );
-        this.brokenLogged = true;
-      }
-      return false;
-    }
-  }
-
-  private rotate(): void {
-    if (this.fd != null) {
-      try {
-        fs.closeSync(this.fd);
-      } catch {
-        /* ignore */
-      }
-      this.fd = null;
-    }
-    try {
-      fs.renameSync(this.filePath, this.filePath + '.1');
-    } catch {
-      /* if rename fails (e.g. .1 locked) we'll just keep growing — better
-         than dropping events */
-    }
-    this.bytesWritten = 0;
-  }
-
-  emit(ev: TrackEvent): void {
-    if (this.suspended) {
-      if (this.pending.length < FileTracker.MAX_PENDING) {
-        this.pending.push(ev);
-      } else {
-        this.droppedDuringSuspend++;
-      }
-      return;
-    }
-    if (!this.ensureOpen()) return;
-    try {
-      const line = JSON.stringify(ev) + '\n';
-      const buf = Buffer.from(line, 'utf8');
-      fs.writeSync(this.fd!, buf);
-      this.bytesWritten += buf.length;
-      if (this.bytesWritten > FileTracker.MAX_FILE_BYTES) this.rotate();
-    } catch (err) {
-      if (!this.brokenLogged) {
-        console.error(
-          `[pxpipe] FileTracker write failed: ${(err as Error).message}`,
-        );
-        this.brokenLogged = true;
-      }
-    }
-  }
-
-  flush(): void {
-    if (this.fd != null) {
-      try {
-        fs.fsyncSync(this.fd);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  close(): void {
-    if (this.fd != null) {
-      try {
-        fs.fsyncSync(this.fd);
-      } catch {
-        /* ignore */
-      }
-      try {
-        fs.closeSync(this.fd);
-      } catch {
-        /* ignore */
-      }
-      this.fd = null;
-    }
-  }
-
-  /**
-   * Stop writing to the underlying fd. emit() will buffer events into
-   * `pending` until resume() is called. fsync the current fd so the bytes
-   * already in flight are durable before the caller does destructive ops
-   * (e.g. sessions.ts:prune renames events.jsonl). Errors are swallowed —
-   * tracker never propagates failures.
-   */
-  async suspend(): Promise<void> {
-    this.suspended = true;
-    if (this.fd != null) {
-      try {
-        fs.fsyncSync(this.fd);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  /**
-   * Re-enable emission. Drops the cached fd so the next emit() reopens the
-   * path by name — this is critical after prune's rename(), because the
-   * old fd points at the orphaned pre-rename inode. Then drains `pending`
-   * in FIFO order. If the queue overflowed during suspend, log once.
-   */
-  resume(): void {
-    if (!this.suspended) return;
-    this.suspended = false;
-    const q = this.pending;
-    this.pending = [];
-
-    // Invalidate cached fd; reopen lazily on next emit().
-    if (this.fd != null) {
-      try {
-        fs.closeSync(this.fd);
-      } catch {
-        /* ignore */
-      }
-      this.fd = null;
-    }
-    try {
-      const st = fs.statSync(this.filePath);
-      this.bytesWritten = st.size;
-    } catch {
-      this.bytesWritten = 0;
-    }
-
-    for (const ev of q) this.emit(ev);
-
-    if (this.droppedDuringSuspend > 0 && !this.suspendOverflowLogged) {
-      console.warn(
-        `[pxpipe] FileTracker dropped ${this.droppedDuringSuspend} events ` +
-          `(suspend queue full at ${FileTracker.MAX_PENDING}); consider shorter prune windows.`,
-      );
-      this.suspendOverflowLogged = true;
-    }
-  }
-}
-
 // ---- 4xx body sidecar writer ---------------------------------------------
 
 /**
@@ -1383,7 +1194,7 @@ async function main(): Promise<void> {
   // Ctrl+C appears to hang. We drop idle sockets immediately, force-close any
   // in-flight ones after a short grace period, and let a second signal exit now.
   let shuttingDown = false;
-  const shutdown = (sig: string) => {
+  const shutdown = async (sig: string) => {
     if (shuttingDown) {
       console.log(`[pxpipe] ${sig} again — forcing exit`);
       process.exit(130);
@@ -1391,7 +1202,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     console.log(`[pxpipe] ${sig} — shutting down`);
     // Flush+close the tracker so we don't drop the last few events on exit.
-    if (tracker instanceof FileTracker) tracker.close();
+    if (tracker instanceof FileTracker) await tracker.close();
     setActiveTracker(null);
     server.close(() => process.exit(0));
     // Drop idle keep-alive sockets so close()'s callback can actually fire.
@@ -1404,8 +1215,8 @@ async function main(): Promise<void> {
     }, 1500);
     deadline.unref();
   };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
 main().catch((err) => {

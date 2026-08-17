@@ -6,6 +6,16 @@ behavioral changes, patch = fixes).
 
 ## Unreleased
 
+### Performance
+- **FileTracker now uses async I/O** (`src/core/trackers/file-tracker.ts`).
+  `emit()` no longer calls `fs.writeSync` on the hot path; events flow through
+  a `fs.createWriteStream` (64 KiB high-water mark) that buffers under
+  backpressure instead of blocking the event loop. `close()`, `flush()` and
+  `suspend()` tear the stream down asynchronously (`fs.fsync` via Promise
+  wrapper) instead of `fs.fsyncSync`/`fs.closeSync`. Rotation pauses emission
+  into the same FIFO used by suspend and `close()` waits for an in-flight
+  rotation before exiting. The `Tracker` interface gained `close?(): Promise<void>`.
+
 ### Security
 - **Worker auth-gate now covers every provider, not just Anthropic/OpenAI.**
   Deploying with any of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
