@@ -31,6 +31,23 @@ behavioral changes, patch = fixes).
   cover all eight acceptance criteria plus the env-wins / silent-on-missing-file
   edges.
 
+### Fixed
+- **Playground previews now pack columns side-by-side, matching
+  production.** The dashboard's `/compress`, `/compress/all`, and
+  `/fragments/compress` endpoints previously rendered a single-column
+  page, while production (via `runExportCore` and the proxy's transform
+  path) packed as many columns side-by-side as fit at `cols: 312`. The
+  user saw a preview roughly 2× wider than the model would receive,
+  making the dashboard a misleading proxy for actual render behavior.
+  All three endpoints now pass an identical `PLAYGROUND_RENDER_OPTS`
+  constant (`reflow: true, shrink: true, multiCol: 'auto'`) defined
+  beside `printHelp()` in `src/node.ts:276`; the constant is the
+  documented mirror of the `renderTextToImages(...)` call at
+  `src/core/export.ts:432` so future drift is one-line obvious. The
+  production path is unchanged. `tests/compress-align.test.ts` asserts
+  byte-identical PNGs between the playground and `runExportCore` over
+  a long `cols = 312` block, plus a `cols`-override sanity check.
+
 ## 0.8.0 — 2026-07-03
 
 ### Security
