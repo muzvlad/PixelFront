@@ -132,6 +132,16 @@ describe('stats aggregator', () => {
     expect(out).toContain('stable');
     // 50% cache hit rate by event.
     expect(out).toMatch(/cache hit rate \(by events\):\s+50.0%/);
+    // SPEC-007: no mojibake — replacement chars (U+FFFD) from a bad
+    // re-encode of em-dashes/bullets would make the report unreadable.
+    expect(out).not.toContain('\uFFFD');
+  });
+
+  it('empty report uses em-dash placeholders and stays FFFD-free (SPEC-007)', () => {
+    const s = newSummary();
+    const out = renderTextReport(s);
+    expect(out).toContain('—');
+    expect(out).not.toContain('\uFFFD');
   });
 
   it('uses bounded reservoir for duration/firstByte on 1M events', () => {

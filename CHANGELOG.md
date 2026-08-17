@@ -6,6 +6,12 @@ behavioral changes, patch = fixes).
 
 ## Unreleased
 
+### Fixed
+- **No replacement characters in stats output.** Confirmed `src/stats.ts`
+  (rewritten in the reservoir change) is clean of U+FFFD mojibake; the
+  stats test now asserts the text report contains no `\uFFFD` and keeps the
+  em-dash ratio placeholder.
+
 ### Removed
 - **Dead code in `src/core/export.ts`**: `fnv32a` and `sourceShortHash` (and
   their tests in `tests/export.test.ts`) removed. Neither was imported by any
