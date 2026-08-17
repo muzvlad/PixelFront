@@ -33,7 +33,7 @@ import {
   type DashboardRoute,
 } from './dashboard.js';
 import { setActiveTracker } from './tracker-coordinator.js';
-import { validateConfig } from './config.js';
+import { validateConfig, buildWalkSkipDirs } from './config.js';
 import { FileTracker } from './core/trackers/file-tracker.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
@@ -736,6 +736,12 @@ Report columns:
   image tokens  estimated tokens to send the rendered PNG pages
   % saved       (text − image) / text × 100
 
+Environment variables:
+  PXPIPE_SKIP_DIRS   comma-separated extra dirs to skip during the walk
+                     (defaults: node_modules, .git, .svn, .hg, dist, build,
+                     __pycache__, .cache, .next, .nuxt, .turbo). Add e.g.
+                     ".venv,target,vendor" for Python/Rust/Go projects.
+
 Examples:
   pxpipe export .                              # whole directory
   pxpipe export --include "*.ts" src/          # TypeScript files only
@@ -746,11 +752,9 @@ Examples:
 `);
 }
 
-/** Directories never descended into when walking files. */
-const WALK_SKIP_DIRS = new Set([
-  'node_modules', '.git', '.svn', '.hg', 'dist', 'build',
-  '__pycache__', '.cache', '.next', '.nuxt', '.turbo',
-]);
+/** Directories never descended into when walking files. Defaults ∪
+ *  PXPIPE_SKIP_DIRS (see buildWalkSkipDirs in config.ts). */
+const WALK_SKIP_DIRS = buildWalkSkipDirs();
 
 interface CollectedFile {
   relPath: string;

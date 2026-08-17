@@ -6,6 +6,13 @@ behavioral changes, patch = fixes).
 
 ## Unreleased
 
+### Added
+- **Configurable walk skip dirs** (`SPEC-009`): `pxpipe export` now honours
+  `PXPIPE_SKIP_DIRS` (comma-separated) in addition to the built-in list
+  (`node_modules`, `.git`, `dist`, `__pycache__`, …). For mono-repos that
+  need to skip `.venv`, `target`, `vendor`, etc. without editing source.
+  Documented in `pxpipe export --help` and the README.
+
 ### Internal
 - **Compress endpoints de-duplicated** (`SPEC-008`): the `/fragments/compress`
   HTML preview was inlined in `dispatchDashboard`; it's now a standalone

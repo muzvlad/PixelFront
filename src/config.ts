@@ -70,3 +70,21 @@ export function normaliseModelsField(value: unknown): string | undefined {
   );
   return undefined;
 }
+
+/** Default directories never descended into when walking files (pxpipe export).
+ *  Extend at runtime with PXPIPE_SKIP_DIRS (comma-separated) — Python venvs
+ *  (`.venv`), Rust `target`, Go `vendor`, Terraform `.terraform`, etc. */
+export const DEFAULT_WALK_SKIP_DIRS: readonly string[] = [
+  'node_modules', '.git', '.svn', '.hg', 'dist', 'build',
+  '__pycache__', '.cache', '.next', '.nuxt', '.turbo',
+];
+
+/** Build the effective skip set = defaults ∪ PXPIPE_SKIP_DIRS (trimmed,
+ *  empty entries filtered). Pure — unit-testable without booting the proxy. */
+export function buildWalkSkipDirs(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  const extra = (env.PXPIPE_SKIP_DIRS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return new Set([...DEFAULT_WALK_SKIP_DIRS, ...extra]);
+}
