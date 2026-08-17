@@ -6,6 +6,12 @@ behavioral changes, patch = fixes).
 
 ## Unreleased
 
+### Removed
+- **Dead code in `src/core/export.ts`**: `fnv32a` and `sourceShortHash` (and
+  their tests in `tests/export.test.ts`) removed. Neither was imported by any
+  production module; the export output dir already uses a random
+  `mkdtempSync` suffix.
+
 ### Performance
 - **FileTracker now uses async I/O** (`src/core/trackers/file-tracker.ts`).
   `emit()` no longer calls `fs.writeSync` on the hot path; events flow through
