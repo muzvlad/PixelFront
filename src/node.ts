@@ -662,7 +662,10 @@ async function handlePlaygroundCompress(
  * Failures here NEVER propagate — the proxy must keep serving requests even
  * if the disk is full or the path is unwritable.
  */
-class FileTracker implements Tracker {
+// Exported for tests (SPEC-002). Production code uses the singleton
+// returned from main(); tests in tests/tracker-suspend.test.ts exercise
+// suspend/resume directly.
+export class FileTracker implements Tracker {
   private fd: number | null = null;
   private bytesWritten = 0;
   private brokenLogged = false;
