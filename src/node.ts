@@ -506,44 +506,7 @@ async function dispatchDashboard(
       // /fragments/compress POSTs {text} from the "Сжать текст в PNG"
       // playground — render it to PNG page(s) and return the preview HTML.
       if (route.name === 'compress' && method === 'POST') {
-        let body: { raw: string; json: Record<string, unknown> | null; url: URLSearchParams };
-        try {
-          body = await parseBodyFlexible(req);
-        } catch {
-          return new Response('bad request body', { status: 400 });
-        }
-        const text = typeof body.json?.text === 'string' ? body.json.text : body.raw;
-        if (!text.trim()) {
-          return new Response('missing text', { status: 400 });
-        }
-        try {
-          const { pages, droppedChars, pixels } = await renderTextToImages(text, PLAYGROUND_RENDER_OPTS);
-          if (pages.length === 0) {
-            return new Response('no pages rendered', { status: 404 });
-          }
-          const imgs = pages
-            .map(
-              (p, i) =>
-                `<div style="margin-bottom:12px">` +
-                `<div style="color:var(--txt-dim);font-size:12px;margin-bottom:4px">стр. ${i + 1} · ${p.width}×${p.height}px</div>` +
-                `<img src="data:image/png;base64,${Buffer.from(p.png).toString('base64')}" ` +
-                `style="max-width:100%;border:1px solid var(--bdr);border-radius:6px" alt="стр. ${i + 1}"/>` +
-                `</div>`,
-            )
-            .join('');
-          return new Response(
-            `<div style="color:var(--txt-dim);font-size:12px;margin-bottom:8px">` +
-              `${pages.length} стр. · ${pixels.toLocaleString('en-US')} px` +
-              `${droppedChars > 0 ? ` · ${droppedChars} символов отброшено` : ''}` +
-              `</div>` + imgs,
-            { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
-          );
-        } catch (e) {
-          return new Response(
-            JSON.stringify({ error: (e as Error).message }),
-            { status: 500, headers: { 'content-type': 'application/json' } },
-          );
-        }
+        return handleCompressInlinePreview(req);
       }
       if (method !== 'GET') return undefined;
       return dashboard.serveFragment(route.name, url, port);
@@ -574,6 +537,14 @@ async function dispatchDashboard(
   }
 }
 
+/** Text to render from a flexible compress body: JSON `{text}` preferred,
+ *  raw fallback (plain-text transcript body). Shared by all /compress paths. */
+function compressTextFromBody(
+  body: { raw: string; json: Record<string, unknown> | null },
+): string {
+  return typeof body.json?.text === 'string' ? body.json.text : body.raw;
+}
+
 /** Manual playground: POST { "text": "..." } → rendered PNG(s).
  *  Same renderer as the dashboard's /fragments/compress (PLAYGROUND_RENDER_OPTS)
  *  but as a standalone JSON/PNG endpoint so curl users can pipe text straight in
@@ -598,7 +569,7 @@ async function handlePlaygroundCompress(
       { status: 400, headers: { 'content-type': 'application/json' } },
     );
   }
-  const text = typeof body.json?.text === 'string' ? body.json.text : body.raw;
+  const text = compressTextFromBody(body);
   if (!text) {
     return new Response(
       JSON.stringify({ error: 'missing "text" field' }),
@@ -639,6 +610,50 @@ async function handlePlaygroundCompress(
         'x-height': String(pages[0]!.height),
       },
     });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: (e as Error).message }),
+      { status: 500, headers: { 'content-type': 'application/json' } },
+    );
+  }
+}
+
+/** HTML preview for the dashboard playground (`/fragments/compress` POST):
+ *  renders {text} with the same PLAYGROUND_RENDER_OPTS as /compress and
+ *  /compress/all, returning inline <img> tags with page metadata. */
+async function handleCompressInlinePreview(req: IncomingMessage): Promise<Response> {
+  let body: { raw: string; json: Record<string, unknown> | null; url: URLSearchParams };
+  try {
+    body = await parseBodyFlexible(req);
+  } catch {
+    return new Response('bad request body', { status: 400 });
+  }
+  const text = compressTextFromBody(body);
+  if (!text.trim()) {
+    return new Response('missing text', { status: 400 });
+  }
+  try {
+    const { pages, droppedChars, pixels } = await renderTextToImages(text, PLAYGROUND_RENDER_OPTS);
+    if (pages.length === 0) {
+      return new Response('no pages rendered', { status: 404 });
+    }
+    const imgs = pages
+      .map(
+        (p, i) =>
+          `<div style="margin-bottom:12px">` +
+          `<div style="color:var(--txt-dim);font-size:12px;margin-bottom:4px">стр. ${i + 1} · ${p.width}×${p.height}px</div>` +
+          `<img src="data:image/png;base64,${Buffer.from(p.png).toString('base64')}" ` +
+          `style="max-width:100%;border:1px solid var(--bdr);border-radius:6px" alt="стр. ${i + 1}"/>` +
+          `</div>`,
+      )
+      .join('');
+    return new Response(
+      `<div style="color:var(--txt-dim);font-size:12px;margin-bottom:8px">` +
+        `${pages.length} стр. · ${pixels.toLocaleString('en-US')} px` +
+        `${droppedChars > 0 ? ` · ${droppedChars} символов отброшено` : ''}` +
+        `</div>` + imgs,
+      { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
+    );
   } catch (e) {
     return new Response(
       JSON.stringify({ error: (e as Error).message }),

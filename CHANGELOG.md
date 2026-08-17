@@ -6,6 +6,13 @@ behavioral changes, patch = fixes).
 
 ## Unreleased
 
+### Internal
+- **Compress endpoints de-duplicated** (`SPEC-008`): the `/fragments/compress`
+  HTML preview was inlined in `dispatchDashboard`; it's now a standalone
+  `handleCompressInlinePreview` sharing `compressTextFromBody` and
+  `PLAYGROUND_RENDER_OPTS` with `/compress` and `/compress/all`. No behavior
+  change.
+
 ### Fixed
 - **No replacement characters in stats output.** Confirmed `src/stats.ts`
   (rewritten in the reservoir change) is clean of U+FFFD mojibake; the
