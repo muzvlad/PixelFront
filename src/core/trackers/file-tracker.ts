@@ -20,6 +20,14 @@ export class FileTracker implements Tracker {
   private stream: fs.WriteStream | null = null;
   private bytesWritten = 0;
   private brokenLogged = false;
+  /** Optional hook (SPEC-011): called with bytes handed to the stream.
+   *  Lets the host throttle periodic fsync by write volume. */
+  onBytesWritten?: (n: number) => void;
+  /** Writes handed to WriteStream whose 'drain'/completion callback hasn't
+   *  fired yet. flush() waits for this to reach 0 before fsync. */
+  private pendingWrites = 0;
+  /** Resolvers parked by flush() waiting for the next write-completion. */
+  private drainWaiters: Array<() => void> = [];
   private static readonly MAX_FILE_BYTES = 100 * 1024 * 1024;
   /** WriteStream internal buffer — large enough that the disk stays busy
    *  while emit() never blocks the event loop (SPEC-005). */
@@ -135,21 +143,40 @@ export class FileTracker implements Tracker {
     const buf = Buffer.from(line, 'utf8');
     // stream.write never blocks: on backpressure the chunk stays in the
     // WriteStream's internal buffer until 'drain'. No own queue needed.
-    this.stream.write(buf);
+    // The completion callback fires once the chunk has been handed to the
+    // kernel — flush() awaits these before fsync (SPEC-011).
+    this.pendingWrites++;
+    this.stream.write(buf, () => {
+      this.pendingWrites--;
+      const waiter = this.drainWaiters.shift();
+      waiter?.();
+    });
+    this.onBytesWritten?.(buf.length);
     this.bytesWritten += buf.length;
     if (this.bytesWritten > FileTracker.MAX_FILE_BYTES && !this.isRotating) {
       this.scheduleRotate();
     }
   }
 
-  /** Drain all buffered writes before returning. No periodic caller yet —
-   *  reserved for SPEC-011 (periodic flush). */
+  /** Wait for every in-flight write to reach the kernel, then fsync the
+   *  file — periodic crash-safety (SPEC-011). Keeps the stream open, so the
+   *  next emit() writes through the same fd. */
   async flush(): Promise<void> {
     const s = this.stream;
-    this.stream = null;
     if (s == null) return;
-    // end() flushes the internal buffer; the next emit() reopens lazily.
-    await new Promise<void>((resolve) => s.end(() => resolve()));
+    while (this.pendingWrites > 0) {
+      await new Promise<void>((resolve) => this.drainWaiters.push(resolve));
+    }
+    const fd = (s as unknown as { fd: number | null }).fd;
+    if (fd != null) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          fs.fsync(fd, (err) => (err ? reject(err) : resolve()));
+        });
+      } catch {
+        /* ignore — tracker never propagates */
+      }
+    }
   }
 
   async close(): Promise<void> {

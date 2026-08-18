@@ -1038,6 +1038,28 @@ async function main(): Promise<void> {
   // losing events written during the rename window.
   setActiveTracker(tracker);
 
+  // Periodic durability: write() hands chunks to the OS page cache; without
+  // fsync a crash (OOM, kill -9) can lose the tail. Flush every
+  // FLUSH_INTERVAL_MS when at least FLUSH_BYTES_THRESHOLD bytes accumulated.
+  // .unref() so the timer never keeps the process alive.
+  const FLUSH_INTERVAL_MS = Number(process.env.PXPIPE_FLUSH_INTERVAL_MS ?? 30000);
+  const FLUSH_BYTES_THRESHOLD = Number(process.env.PXPIPE_FLUSH_BYTES_THRESHOLD ?? 1024 * 1024);
+  let bytesSinceLastFlush = 0;
+  tracker.onBytesWritten = (n: number) => {
+    bytesSinceLastFlush += n;
+  };
+  const flushTimer = setInterval(async () => {
+    if (bytesSinceLastFlush >= FLUSH_BYTES_THRESHOLD) {
+      try {
+        await tracker.flush?.();
+        bytesSinceLastFlush = 0;
+      } catch (err) {
+        console.warn(`[pxpipe] tracker flush failed: ${(err as Error).message}`);
+      }
+    }
+  }, FLUSH_INTERVAL_MS);
+  flushTimer.unref();
+
   // Sidecar dir for oversized 4xx request-body samples. Lives next to the
   // events.jsonl so a single `rm -rf` cleans up both. Lazy-mkdir'd on first
   // sidecar write (see maybeWriteBodySidecar).

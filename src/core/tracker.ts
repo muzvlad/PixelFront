@@ -163,6 +163,8 @@ export interface Tracker {
   flush?(): void | Promise<void>;
   /** Optional: close the underlying sink and wait for buffered writes to drain. */
   close?(): Promise<void>;
+  /** Optional hook: called with the number of bytes written to the sink. */
+  onBytesWritten?(n: number): void;
   /** Optional: stop emitting to underlying sink; buffer in memory instead. */
   suspend?(): void | Promise<void>;
   /** Optional: re-enable emission; flush buffered events in FIFO order. */

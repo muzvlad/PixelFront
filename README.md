@@ -80,6 +80,12 @@ are imaged.
   byte-identical. On the GPT path, tool definitions stay native JSON and no
   Anthropic `cache_control` markers are used.
 
+**Event-log durability:** the proxy fsyncs the JSONL log periodically instead
+of per-request (fast writes, low crash loss). Tune with
+`PXPIPE_FLUSH_INTERVAL_MS` (default 30000) and `PXPIPE_FLUSH_BYTES_THRESHOLD`
+(default 1048576) — a flush fires when the interval elapses AND at least that
+many bytes accumulated.
+
 ## Benchmarks (reproducible)
 
 Measured with novel random-number problems the model cannot have memorized:

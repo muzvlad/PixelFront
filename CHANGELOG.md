@@ -7,6 +7,12 @@ behavioral changes, patch = fixes).
 ## Unreleased
 
 ### Added
+- **Periodic tracker flush** (`SPEC-011`): the event log is now fsynced to
+  disk on a timer (`PXPIPE_FLUSH_INTERVAL_MS`, default 30000) once at least
+  `PXPIPE_FLUSH_BYTES_THRESHOLD` (default 1 MiB) accumulated — crash-safety
+  without per-request fsync cost. `FileTracker.flush()` waits for in-flight
+  writes to reach the kernel, then fsyncs, keeping the stream open. The
+  `Tracker` interface gained an optional `onBytesWritten?` hook.
 - **Configurable walk skip dirs** (`SPEC-009`): `pxpipe export` now honours
   `PXPIPE_SKIP_DIRS` (comma-separated) in addition to the built-in list
   (`node_modules`, `.git`, `dist`, `__pycache__`, …). For mono-repos that
