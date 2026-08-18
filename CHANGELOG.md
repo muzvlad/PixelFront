@@ -7,6 +7,12 @@ behavioral changes, patch = fixes).
 ## Unreleased
 
 ### Added
+- **Dashboard CSP with script hashes** (`SPEC-014`): every dashboard HTML
+  response now sends `Content-Security-Policy: script-src 'self' 'sha384-…'`
+  covering all five inline scripts (theme boot, htmx, glue, theme, Alpine) —
+  no `'unsafe-inline'`. `scripts/vendor-ui.mjs` records SHA-384 integrity for
+  vendored assets. The four inline `onclick`/`onerror` attributes were moved
+  to delegated `data-*` handlers so CSP stays enforceable.
 - **Documented model scope** (`SPEC-012`): `--help` no longer prints the full
   default `PXPIPE_MODELS` list; the README gained a "Supported models" section
   mapping every default base (`claude-fable-5`, `gpt-5.6`, DeepSeek V4/V3,
