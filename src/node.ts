@@ -35,6 +35,7 @@ import {
 import { setActiveTracker } from './tracker-coordinator.js';
 import { validateConfig, buildWalkSkipDirs } from './config.js';
 import { FileTracker } from './core/trackers/file-tracker.js';
+import { debug, info, warn, error } from './log.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
  *  transform.ts; startup knobs cover deployment plus emergency GPT scope
@@ -65,7 +66,7 @@ function applyConfigFileDefaults(): void {
   try {
     parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
   } catch (e) {
-    console.warn(`[pxpipe] ignored invalid config ${file}: ${(e as Error).message}`);
+    warn(`ignored invalid config ${file}: ${(e as Error).message}`);
     return;
   }
   const cfg = validateConfig(parsed);
@@ -92,8 +93,8 @@ function parseCli(argv: string[]): RuntimeConfig {
       process.exit(0);
     }
     if (a.startsWith('-')) {
-      console.error(`[pxpipe] unknown option: ${a}`);
-      console.error(`[pxpipe] this build accepts no flags; run \`pxpipe --help\` for env vars`);
+      error(`unknown option: ${a}`);
+      error(`this build accepts no flags; run \`pxpipe --help\` for env vars`);
       process.exit(2);
     }
   }
@@ -171,7 +172,7 @@ function buildCompatibleProviders(): CompatibleProvider[] | undefined {
 function parseProvider(v: string | undefined): 'cloudflare-ai-gateway' | undefined {
   if (v === undefined || v === '') return undefined;
   if (v === 'cloudflare-ai-gateway') return v;
-  console.error(`[pxpipe] unknown PXPIPE_PROVIDER: ${v}`);
+  error(`unknown PXPIPE_PROVIDER: ${v}`);
   process.exit(2);
 }
 
@@ -226,6 +227,7 @@ function printHelp(): void {
                           полный список и маппинг — README.md#supported-models; off — выкл
   PXPIPE_CONFIG           путь к JSON конфигу (по умолчанию ~/.config/pxpipe/config.json)
   PXPIPE_LOG              путь к JSONL журналу (по умолчанию ~/.pxpipe/events.jsonl)
+  PXPIPE_LOG_LEVEL        уровень логов: debug | info | warn | error (по умолчанию info)
   PXPIPE_DUMP_DIR         отладка: сохранять PNG сюда; off если не задано
 
 Использование с Claude Code:
@@ -800,7 +802,7 @@ function collectFilesFromTargets(
   for (const target of targets) {
     let st: fs.Stats;
     try { st = fs.statSync(target); } catch {
-      console.warn(`[pxpipe export] skipping inaccessible target: ${target}`);
+      warn(`export: skipping inaccessible target: ${target}`);
       continue;
     }
     if (st.isDirectory()) {
@@ -810,7 +812,7 @@ function collectFilesFromTargets(
       const r = readExportTextFile(target, rel, include, exclude);
       if (r.kind === 'ok') files.push({ relPath: rel, content: r.content });
       else if (r.kind !== 'excluded') {
-        console.warn(`[pxpipe export] skipping ${r.kind} file: ${target}`);
+        warn(`export: skipping ${r.kind} file: ${target}`);
       }
     }
   }
@@ -841,7 +843,7 @@ async function collectSource(opts: ExportParsed): Promise<[string, string[]]> {
     const cwd = opts.targets.length > 0 ? opts.targets[0]! : process.cwd();
     const diff = gitRun(['diff', opts.diff], cwd);
     if (diff === null) {
-      console.error(`[pxpipe export] git diff ${opts.diff} failed`);
+      error(`export: git diff ${opts.diff} failed`);
       process.exit(1);
     }
     return [diff, []];
@@ -866,7 +868,7 @@ async function collectSource(opts: ExportParsed): Promise<[string, string[]]> {
       const r = readExportTextFile(full, rel, opts.include, opts.exclude);
       if (r.kind === 'ok') untracked += `\n===== ${rel} =====\n` + r.content;
       else if (r.kind !== 'excluded') {
-        console.warn(`[pxpipe export] skipping ${r.kind} untracked file: ${rel}`);
+        warn(`export: skipping ${r.kind} untracked file: ${rel}`);
       }
     }
     const sourceText = diff + untracked;
@@ -877,7 +879,7 @@ async function collectSource(opts: ExportParsed): Promise<[string, string[]]> {
   const targets = opts.targets.length > 0 ? opts.targets : ['.'];
   const files = collectFilesFromTargets(targets, opts.include, opts.exclude);
   if (files.length === 0) {
-    console.warn('[pxpipe export] no files collected');
+    warn('export: no files collected');
   }
   const sourceText = files
     .map((f) => `===== ${f.relPath} =====\n${f.content}`)
@@ -948,8 +950,8 @@ async function runExport(argv: string[]): Promise<void> {
     process.exit(0);
   }
   if (parseResult.kind === 'error') {
-    console.error(`[pxpipe export] ${parseResult.message}`);
-    console.error(`[pxpipe export] run \`pxpipe export --help\` for usage`);
+    error(`export: ${parseResult.message}`);
+    error('export: run `pxpipe export --help` for usage');
     process.exit(2);
   }
 
@@ -1000,7 +1002,7 @@ async function main(): Promise<void> {
   // A/B harness passthrough switch (see the `transform` callback below).
   const forcePassthrough = /^(1|true|yes|on)$/i.test(process.env.PXPIPE_DISABLE ?? '');
   if (forcePassthrough) {
-    console.log('[pxpipe] PXPIPE_DISABLE set — passthrough mode (compress=false), still logging usage + baselines');
+    info('PXPIPE_DISABLE set — passthrough mode (compress=false), still logging usage + baselines');
   }
   // Debug aid: when PXPIPE_DUMP_DIR is set, persist every rendered PNG this
   // process emits, so you can eyeball exactly what the model received (OCR /
@@ -1012,9 +1014,9 @@ async function main(): Promise<void> {
   if (imageDumpDir) {
     try {
       fs.mkdirSync(imageDumpDir, { recursive: true });
-      console.log(`[pxpipe] PXPIPE_DUMP_DIR set — dumping rendered PNGs to ${imageDumpDir}`);
+      info(`PXPIPE_DUMP_DIR set — dumping rendered PNGs to ${imageDumpDir}`);
     } catch (err) {
-      console.warn(`[pxpipe] PXPIPE_DUMP_DIR unusable (${(err as Error).message}) — image dumping disabled`);
+      warn(`PXPIPE_DUMP_DIR unusable (${(err as Error).message}) — image dumping disabled`);
       imageDumpDir = undefined;
     }
   }
@@ -1054,7 +1056,7 @@ async function main(): Promise<void> {
         await tracker.flush?.();
         bytesSinceLastFlush = 0;
       } catch (err) {
-        console.warn(`[pxpipe] tracker flush failed: ${(err as Error).message}`);
+        warn(`tracker flush failed: ${(err as Error).message}`);
       }
     }
   }, FLUSH_INTERVAL_MS);
@@ -1116,11 +1118,11 @@ async function main(): Promise<void> {
           try {
             fs.writeFileSync(path.join(imageDumpDir, name), pngs[i]!);
           } catch (err) {
-            console.warn(`[pxpipe] PNG dump write failed: ${(err as Error).message}`);
+            warn(`PNG dump write failed: ${(err as Error).message}`);
             break; // dir vanished / full — stop hammering it this request
           }
         }
-        console.log(`  ↳ dumped ${pngs.length} rendered png(s) → ${imageDumpDir}`);
+        debug(`  ↳ dumped ${pngs.length} rendered png(s) → ${imageDumpDir}`);
       }
       // Terse human-readable console line.
       const extra: string[] = [];
@@ -1136,7 +1138,7 @@ async function main(): Promise<void> {
         e.usage !== undefined
           ? ` tokens=${inputTokens}+${e.usage.output_tokens ?? 0} cache_read=${cacheRead}`
           : '';
-      console.log(
+      debug(
         `[${new Date().toISOString()}] ${e.method} ${e.path} → ${e.status} (${e.durationMs}ms) ${tag}${usageTag}`,
       );
 
@@ -1147,14 +1149,14 @@ async function main(): Promise<void> {
         const trimmed = e.errorBody.length > 400
           ? e.errorBody.slice(0, 400) + '…'
           : e.errorBody;
-        console.warn(`[pxpipe ${e.status}] upstream body: ${trimmed}`);
+        warn(`upstream ${e.status} body: ${trimmed}`);
       }
 
       // Canary: surface unknown tag-shaped blocks so a Claude Code release
       // that adds a new dynamic tag is caught within hours.
       if (e.info?.unknownStaticTags && e.info.unknownStaticTags.length > 0) {
-        console.warn(
-          `[pxpipe warn] unknown tag(s) in static slab: ${e.info.unknownStaticTags.join(', ')}  ` +
+        warn(
+          `unknown tag(s) in static slab: ${e.info.unknownStaticTags.join(', ')}  ` +
             `— may need to add to DYNAMIC_BLOCK_TAGS (per-turn) or KNOWN_STATIC_TAGS (static) in src/core/transform.ts`,
         );
       }
@@ -1202,7 +1204,7 @@ async function main(): Promise<void> {
         await writeWebResponse(webRes, res);
       })
       .catch((err) => {
-        console.error('[pxpipe] handler error:', err);
+        error('handler error:', err);
         if (!res.headersSent) res.statusCode = 500;
         res.end();
       });
@@ -1213,19 +1215,19 @@ async function main(): Promise<void> {
   const isLoopbackHost =
     opts.host === '127.0.0.1' || opts.host === 'localhost' || opts.host === '::1';
   server.listen(opts.port, opts.host, () => {
-    console.log(`[pxpipe] listening on http://${displayHost}:${opts.port}`);
+    info(`listening on http://${displayHost}:${opts.port}`);
     if (!isLoopbackHost) {
-      console.warn(
-        `[pxpipe] WARNING: bound to ${opts.host} — the unauthenticated dashboard ` +
+      warn(
+        `bound to ${opts.host} — the unauthenticated dashboard ` +
           `(captured request context + kill switch) is reachable off-host. ` +
           `Unset HOST to restrict to loopback.`,
       );
     }
     const routes = resolveUpstreams(config);
-    console.log(`[pxpipe] anthropic upstream → ${routes.anthropic}`);
-    console.log(`[pxpipe] openai upstream → ${routes.openai}`);
-    console.log(`[pxpipe] tracking events → ${opts.eventsFile}`);
-    console.log(`[pxpipe] dashboard → http://127.0.0.1:${opts.port}/`);
+    info(`anthropic upstream → ${routes.anthropic}`);
+    info(`openai upstream → ${routes.openai}`);
+    info(`tracking events → ${opts.eventsFile}`);
+    info(`dashboard → http://127.0.0.1:${opts.port}/`);
   });
 
   // server.close() only stops accepting new connections and waits for open
@@ -1237,11 +1239,11 @@ async function main(): Promise<void> {
   let shuttingDown = false;
   const shutdown = async (sig: string) => {
     if (shuttingDown) {
-      console.log(`[pxpipe] ${sig} again — forcing exit`);
+      info(`${sig} again — forcing exit`);
       process.exit(130);
     }
     shuttingDown = true;
-    console.log(`[pxpipe] ${sig} — shutting down`);
+    info(`${sig} — shutting down`);
     // Flush+close the tracker so we don't drop the last few events on exit.
     if (tracker instanceof FileTracker) await tracker.close();
     setActiveTracker(null);
@@ -1261,6 +1263,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('[pxpipe] fatal:', err);
+  error('fatal:', err);
   process.exit(1);
 });

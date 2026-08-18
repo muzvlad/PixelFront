@@ -7,6 +7,13 @@ behavioral changes, patch = fixes).
 ## Unreleased
 
 ### Added
+- **Configurable log level** (`SPEC-015`): `PXPIPE_LOG_LEVEL` accepts
+  `debug | info | warn | error` (default `info`). Diagnostic output in
+  `src/node.ts` now flows through a small level-aware logger
+  (`src/log.ts`); per-request metrics moved to `debug`. Info keeps the plain
+  `[pxpipe]` prefix so existing stdout parsers keep working. `worker.ts` is
+  untouched. Command output (`--help`, `--version`, `pxpipe export` report)
+  stays unconditional.
 - **Dashboard CSP with script hashes** (`SPEC-014`): every dashboard HTML
   response now sends `Content-Security-Policy: script-src 'self' 'sha384-…'`
   covering all five inline scripts (theme boot, htmx, glue, theme, Alpine) —
