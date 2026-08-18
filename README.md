@@ -86,6 +86,38 @@ of per-request (fast writes, low crash loss). Tune with
 (default 1048576) — a flush fires when the interval elapses AND at least that
 many bytes accumulated.
 
+## Supported models
+
+`PXPIPE_MODELS` accepts a comma-separated list of model bases. The built-in
+default covers the following:
+
+| Value | Provider | Notes |
+|---|---|---|
+| `claude-fable-5` | Anthropic (Fable 5) | Alias, requires OpenCode GO subscription |
+| `gpt-5.6` | OpenAI (GPT 5.6) | Alias, requires OpenCode GO subscription |
+| `deepseek-v4-pro` | DeepSeek V4 Pro | OpenAI-compatible |
+| `deepseek-v4-flash` | DeepSeek V4 Flash | OpenAI-compatible |
+| `deepseek-v4-flash-free` | DeepSeek V4 Flash Free | Via OpenCode GO subscription |
+| `deepseek-v3` | DeepSeek V3 | OpenAI-compatible |
+| `mimo-v2.5-pro` / `mimo-v2.5` | Xiaomi MiMo V2.5 | OpenAI-compatible |
+| `minimax-m3` | MiniMax M3 | Multimodal; OpenCode GO subscription |
+
+Matching is a prefix test (case-insensitive): `PXPIPE_MODELS=deepseek-*`
+enables every DeepSeek base above.
+
+### Customizing
+
+```bash
+# Disable all compression:
+PXPIPE_MODELS=off pxpipe
+
+# Only Claude:
+PXPIPE_MODELS=claude-fable-5 pxpipe
+
+# Claude + DeepSeek:
+PXPIPE_MODELS=claude-fable-5,deepseek-* pxpipe
+```
+
 ## Benchmarks (reproducible)
 
 Measured with novel random-number problems the model cannot have memorized:

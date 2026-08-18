@@ -221,9 +221,9 @@ function printHelp(): void {
   PXPIPE_PROVIDER         'cloudflare-ai-gateway' — проксировать через шлюз
   PXPIPE_GATEWAY_BASE_URL базовый URL шлюза (обязателен с PXPIPE_PROVIDER)
   PXPIPE_GATEWAY_HEADERS  доп. заголовки: JSON объект или k=v;k2=v2
-  PXPIPE_MODELS           модели через запятую для сжатия (Claude + GPT + DeepSeek + MiMo + MiniMax);
-                          по умолчанию claude-fable-5,gpt-5.6,deepseek-v4-pro,deepseek-v4-flash,
-                          deepseek-v4-flash-free,deepseek-v3,mimo-v2.5-pro,mimo-v2.5,minimax-m3; off — выкл
+  PXPIPE_MODELS           модели для сжатия через запятую (Claude + GPT + DeepSeek + MiMo + MiniMax);
+                          по умолчанию покрывает прямые API и алиасы подписки OpenCode GO;
+                          полный список и маппинг — README.md#supported-models; off — выкл
   PXPIPE_CONFIG           путь к JSON конфигу (по умолчанию ~/.config/pxpipe/config.json)
   PXPIPE_LOG              путь к JSONL журналу (по умолчанию ~/.pxpipe/events.jsonl)
   PXPIPE_DUMP_DIR         отладка: сохранять PNG сюда; off если не задано

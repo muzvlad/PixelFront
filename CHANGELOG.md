@@ -7,6 +7,10 @@ behavioral changes, patch = fixes).
 ## Unreleased
 
 ### Added
+- **Documented model scope** (`SPEC-012`): `--help` no longer prints the full
+  default `PXPIPE_MODELS` list; the README gained a "Supported models" section
+  mapping every default base (`claude-fable-5`, `gpt-5.6`, DeepSeek V4/V3,
+  MiMo V2.5, MiniMax M3) to its provider and OpenCode GO alias status.
 - **Periodic tracker flush** (`SPEC-011`): the event log is now fsynced to
   disk on a timer (`PXPIPE_FLUSH_INTERVAL_MS`, default 30000) once at least
   `PXPIPE_FLUSH_BYTES_THRESHOLD` (default 1 MiB) accumulated — crash-safety
