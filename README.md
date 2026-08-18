@@ -118,6 +118,61 @@ PXPIPE_MODELS=claude-fable-5 pxpipe
 PXPIPE_MODELS=claude-fable-5,deepseek-* pxpipe
 ```
 
+## Operational notes
+
+### Log file location
+
+By default, per-request events are written to:
+
+```
+~/.pxpipe/events.jsonl
+```
+
+Override with `PXPIPE_LOG=/path/to/file.jsonl`.
+
+The file rotates when it exceeds **100 MB** — the current file is renamed to
+`<path>.1` (overwriting any previous `.1`) and a fresh file is opened. We keep
+**one generation** of history; for longer retention, archive the file yourself
+before rotation.
+
+### 4xx body sidecars
+
+Failed upstream requests (4xx) may carry a large body. Instead of inflating the
+JSONL log, the gzipped body is written to:
+
+```
+~/.pxpipe/4xx-bodies/<iso-timestamp>-<sha8>.json.gz
+```
+
+The path is recorded in the matching `events.jsonl` row as
+`req_body_sample_path`. To inspect:
+`zcat ~/.pxpipe/4xx-bodies/2026-08-17T10-00-00-123Z-abcd1234.json.gz | jq`.
+Sidecars are deleted when `prune` removes their owning session; they are **not**
+cleaned by log rotation, so monitor that directory's disk usage separately.
+
+### Pruning sessions
+
+The dashboard's "Cleanup" tab prunes old sessions from `events.jsonl` and
+deletes their sidecar files.
+
+Concurrency: `prune` rewrites the log via rename, but the live tracker is
+paused (suspend/resume) around the rewrite, so events written during the prune
+are buffered and flushed into the fresh file — see SPEC-002/SPEC-005 in
+`specs/`. Two residual loss windows remain: the in-memory buffer is capped,
+and a hard crash *during* a prune drops that buffer. For large prunes, stop
+the proxy first for zero-loss guarantees:
+
+```bash
+pkill -f pxpipe-proxy   # or your process manager
+# now safe to prune via the dashboard, then restart
+```
+
+### Process management
+
+`pxpipe-proxy` traps `SIGINT`/`SIGTERM`, flushes the event log and closes idle
+keep-alive sockets; a second signal exits immediately. Set `PXPIPE_LOG_LEVEL`
+to `debug` for per-request traces, `error` to silence everything else.
+
 ## Benchmarks (reproducible)
 
 Measured with novel random-number problems the model cannot have memorized:

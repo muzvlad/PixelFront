@@ -7,6 +7,10 @@ behavioral changes, patch = fixes).
 ## Unreleased
 
 ### Added
+- **Operational docs** (`SPEC-016`): the README gained an "Operational notes"
+  section (log location + 100 MB rotation, 4xx body sidecars, prune
+  concurrency, process management). `prune` and `maybeWriteBodySidecar` JSDoc
+  updated to describe suspend/resume buffering and sidecar lifecycle.
 - **Configurable log level** (`SPEC-015`): `PXPIPE_LOG_LEVEL` accepts
   `debug | info | warn | error` (default `info`). Diagnostic output in
   `src/node.ts` now flows through a small level-aware logger

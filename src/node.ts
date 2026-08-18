@@ -672,6 +672,10 @@ async function handleCompressInlinePreview(req: IncomingMessage): Promise<Respon
  * lands in the event as `req_body_sample_path`. Survives log rotation and
  * stays out of the streaming dashboard.
  *
+ * Lifecycle: sidecars are deleted by sessions.ts:prune when their owning
+ * session is pruned. They are NOT auto-cleaned by log rotation — if you keep
+ * many sessions, monitor `<dir>` disk usage separately.
+ *
  * Failure mode: directory unwritable or write fails → returns undefined and
  * the body sample is silently dropped (we still keep the sha8 and error_body
  * for diagnostics; the request itself was never blocked by this).
