@@ -166,6 +166,23 @@ function buildCompatibleProviders(): CompatibleProvider[] | undefined {
     upstream: miniUpstream,
     apiKey: miniKey,
   });
+  // NVIDIA NIM catalog (build.nvidia.com) — OpenAI-compatible, models arrive
+  // with an org prefix: moonshotai/kimi-k3, nvidia/nemotron-*, minimaxai/
+  // minimax-m3. pxpipe appends `/v1/chat/completions` itself, so the base has
+  // no `/v1` suffix. Without NVIDIA_API_KEY the client's Authorization header
+  // is forwarded as-is (same contract as the GO providers above).
+  // Compression stays OFF for these (not in PXPIPE_MODELS defaults): Nemotron
+  // is text-only, Kimi/Big Pickle vision unverified — fail-closed passthrough.
+  const nvUpstream = process.env.NVIDIA_UPSTREAM ?? 'https://integrate.api.nvidia.com';
+  const nvKey = process.env.NVIDIA_API_KEY;
+  providers.push({ modelPrefix: 'moonshotai', upstream: nvUpstream, apiKey: nvKey });
+  providers.push({ modelPrefix: 'nvidia', upstream: nvUpstream, apiKey: nvKey });
+  // Longest-prefix wins in findCompatibleProvider, so this must be registered
+  // to keep minimaxai/minimax-m3 away from the 'minimax' GO provider above.
+  providers.push({ modelPrefix: 'minimaxai', upstream: nvUpstream, apiKey: nvKey });
+  // big-pickle lives in the Zen catalog; subscription key is forwarded from
+  // the client (apiKey unset → forward).
+  providers.push({ modelPrefix: 'big-pickle', upstream: GO_UPSTREAM });
   return providers.length > 0 ? providers : undefined;
 }
 
@@ -214,6 +231,12 @@ function printHelp(): void {
                            https://opencode.ai/zen (шлюз opencode-провайдера);
                            иначе https://api.xiaomimimo.com
   MIMO_API_KEY            ключ MiMo; если задан, upstream = api.xiaomimimo.com
+  NVIDIA_UPSTREAM         базовый URL каталога NVIDIA NIM (по умолчанию
+                          https://integrate.api.nvidia.com) — для моделей с
+                          org-префиксом: moonshotai/kimi-k3, nvidia/nemotron-*,
+                          minimaxai/minimax-m3
+  NVIDIA_API_KEY          ключ NVIDIA (nvapi-...); если не задан, ключ клиента
+                          пробрасывается как есть
   MINIMAX_UPSTREAM        базовый URL MiniMax. По умолчанию для пользователей
                            подписки OpenCode GO (без MINIMAX_API_KEY) —
                            https://opencode.ai/zen/go (шлюз подписки GO);

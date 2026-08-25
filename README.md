@@ -101,6 +101,16 @@ default covers the following:
 | `deepseek-v3` | DeepSeek V3 | OpenAI-compatible |
 | `mimo-v2.5-pro` / `mimo-v2.5` | Xiaomi MiMo V2.5 | OpenAI-compatible |
 | `minimax-m3` | MiniMax M3 | Multimodal; OpenCode GO subscription |
+| `moonshotai/kimi-k3` | Moonshot Kimi K3 via NVIDIA NIM | Passthrough (no compression) |
+| `nvidia/nemotron-*` | NVIDIA Nemotron via NVIDIA NIM | Text-only; passthrough |
+| `minimaxai/minimax-m3` | MiniMax M3 via NVIDIA NIM | Routed to NVIDIA, not GO |
+| `big-pickle` | Big Pickle via OpenCode Zen | Passthrough; client key forwarded |
+
+Models with an org prefix (`moonshotai/*`, `nvidia/*`, `minimaxai/*`) route to
+the NVIDIA NIM catalog (`NVIDIA_UPSTREAM`, default
+`https://integrate.api.nvidia.com`; set `NVIDIA_API_KEY` or the client's
+`Authorization` is forwarded). These models are **not** compressed — requests
+pass through unchanged; pxpipe provides logging and the dashboard for them.
 
 Matching is a prefix test (case-insensitive): `PXPIPE_MODELS=deepseek-*`
 enables every DeepSeek base above.

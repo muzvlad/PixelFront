@@ -7,6 +7,14 @@ behavioral changes, patch = fixes).
 ## Unreleased
 
 ### Added
+- **NVIDIA NIM + Big Pickle routing** (`SPEC-017`): org-prefixed models now
+  route correctly instead of falling to the OpenAI upstream —
+  `moonshotai/kimi-k3`, `nvidia/nemotron-*` and `minimaxai/minimax-m3` go to
+  the NVIDIA catalog (`NVIDIA_UPSTREAM`, default
+  `https://integrate.api.nvidia.com`; `NVIDIA_API_KEY` or forwarded client
+  auth), and `big-pickle` goes to the Zen gateway. The `minimaxai` prefix is
+  registered explicitly so longest-match keeps it away from the GO `minimax`
+  provider. These models stay uncompressed (fail-closed passthrough).
 - **Operational docs** (`SPEC-016`): the README gained an "Operational notes"
   section (log location + 100 MB rotation, 4xx body sidecars, prune
   concurrency, process management). `prune` and `maybeWriteBodySidecar` JSDoc
