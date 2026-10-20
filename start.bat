@@ -1,8 +1,8 @@
 @echo off
-title pxpipe — token-saving proxy
+title PixelFront — token-saving proxy
 echo.
 echo  ============================================
-echo   pxpipe
+echo   PixelFront
 echo  ============================================
 echo.
 

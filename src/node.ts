@@ -94,7 +94,7 @@ function parseCli(argv: string[]): RuntimeConfig {
     }
     if (a.startsWith('-')) {
       error(`unknown option: ${a}`);
-      error(`this build accepts no flags; run \`pxpipe --help\` for env vars`);
+      error(`this build accepts no flags; run \`pixelfront --help\` for env vars`);
       process.exit(2);
     }
   }
@@ -194,11 +194,11 @@ function parseProvider(v: string | undefined): 'cloudflare-ai-gateway' | undefin
 }
 
 function printHelp(): void {
-  console.log(`pxpipe — прокси для экономии токенов
+  console.log(`PixelFront — прокси для экономии токенов
 
 Использование:
-  pxpipe                запустить прокси (без флагов)
-  pxpipe export [...]   отрисовать файлы/diff в PNG страницы + отчёт о стоимости
+  pixelfront                запустить прокси (без флагов)
+  pixelfront export [...]   отрисовать файлы/diff в PNG страницы + отчёт о стоимости
 
 Прокси сжимает инструменты, схемы, напоминания, результаты инструментов
 и историю диалога; записывает события на диск; измеряет экономию через
@@ -731,10 +731,10 @@ async function maybeWriteBodySidecar(
 // ---- pxpipe export -------------------------------------------------------
 
 function printExportHelp(): void {
-  console.log(`pxpipe export — render code/text to PNG pages for compressed LLM context
+  console.log(`PixelFront export — render code/text to PNG pages for compressed LLM context
 
 Usage:
-  pxpipe export [target ...]    default target is "." (current directory)
+  pixelfront export [target ...]    default target is "." (current directory)
 
 Targets:
   Files or directories to include. Multiple targets are joined with a header
@@ -754,7 +754,7 @@ Options:
   -h, --help         show this help
 
 Output:
-  <out>/pxpipe-export-<hash>/
+  <out>/pixelfront-export-<hash>/
     page-001.png ...  rendered image pages
     factsheet.txt     verbatim precision tokens (paths, SHAs, ids, numbers)
     manifest.json     metadata + token report
@@ -772,12 +772,12 @@ Environment variables:
                      ".venv,target,vendor" for Python/Rust/Go projects.
 
 Examples:
-  pxpipe export .                              # whole directory
-  pxpipe export --include "*.ts" src/          # TypeScript files only
-  pxpipe export --git                          # uncommitted changes
-  pxpipe export --diff HEAD~3                  # last 3 commits
-  pxpipe export --open src/                    # render src/, then reveal the folder
-  cat big-file.txt | pxpipe export --stdin
+  pixelfront export .                              # whole directory
+  pixelfront export --include "*.ts" src/          # TypeScript files only
+  pixelfront export --git                          # uncommitted changes
+  pixelfront export --diff HEAD~3                  # last 3 commits
+  pixelfront export --open src/                    # render src/, then reveal the folder
+  cat big-file.txt | pixelfront export --stdin
 `);
 }
 
@@ -978,7 +978,7 @@ async function runExport(argv: string[]): Promise<void> {
   }
   if (parseResult.kind === 'error') {
     error(`export: ${parseResult.message}`);
-    error('export: run `pxpipe export --help` for usage');
+    error('export: run `pixelfront export --help` for usage');
     process.exit(2);
   }
 

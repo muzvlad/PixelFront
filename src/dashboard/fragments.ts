@@ -176,7 +176,7 @@ export function renderSessionSummaryFragment(s: StatsPayload): string {
       `<div class="hero hero-empty">` +
       `<div class="hero-eyebrow">С момента запуска</div>` +
       `<div class="hero-headline">Прогрев…</div>` +
-      `<div class="hero-sub">Направьте Claude Code на этот прокси и отправьте сообщение. Как только запрос пройдёт, экономия появится здесь.</div>` +
+      `<div class="hero-sub">Пока пусто. Запусти свой агент, отправь запрос — и смотри, как контекст схлопывается в пиксели, а токены тают.</div>` +
       `</div>`
     );
   }
@@ -455,7 +455,7 @@ export function renderContextMapFragment(
     `<div class="split-col split-img">` +
     `<div class="split-head">Сжато в изображения <span class="split-sum">${kFmt(totalImagedChars)} символов · ${c.imageCount} стр.</span></div>` +
     (imgRows || `<div class="ctx-row muted-row">ничего не сжато в этом запросе</div>`) +
-    `<div class="split-note">pxpipe может неточно читать значения — считайте это общим впечатлением.</div>` +
+    `<div class="split-note">PixelFront может неточно читать значения — считайте это общим впечатлением.</div>` +
     `</div>` +
     `<div class="split-col split-txt">` +
     `<div class="split-head">Оставлено как текст <span class="split-sum">точно</span></div>` +
@@ -505,7 +505,7 @@ export function renderRecentFragment(p: RecentPayload): string {
               : '';
             const savedCell = saved == null
               ? e.model && !isVisionModel(e.model)
-                ? `<td class="num muted" title="Модель ${escapeHtml(e.model)} не поддерживает изображения — pxpipe не может сжать контекст в картинки, экономия недоступна. Переключитесь на vision-модель (MiMo / GPT).">—</td>`
+                ? `<td class="num muted" title="Модель ${escapeHtml(e.model)} не поддерживает изображения — PixelFront не может сжать контекст в картинки, экономия недоступна. Переключитесь на vision-модель (MiMo / GPT).">—</td>`
                 : `<td class="num muted">—</td>`
               : saved > 0
                 ? `<td class="num pos">${numFmt(saved)}</td>`
@@ -1101,7 +1101,7 @@ export function renderPage(port: number): string {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>pxpipe — панель мониторинга</title>
+<title>PixelFront — панель мониторинга</title>
 <link rel="icon" href="${FAVICON}" />
 <style>${CSS}</style>
 <script>${THEME_BOOT_JS}</script>
@@ -1112,7 +1112,7 @@ export function renderPage(port: number): string {
   <div class="brand">
     <span class="flame-dot"></span>
     <div>
-      <div class="wordmark">pxpipe</div>
+      <div class="wordmark">PixelFront</div>
       <div class="tagline">Наблюдайте за тем, что превращается в изображения для экономии токенов.</div>
     </div>
   </div>
