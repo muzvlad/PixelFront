@@ -1,0 +1,28 @@
+# 17.08.2026
+
+- pxpipe: MiniMax-M3 сжатие. Диагностика: запросы minimax-m3 упираются в upstream
+  `401 CreditsError: Insufficient balance` (opencode zen, workspace
+  wrk_01KWCABH03KC2ADYXH31QV3FDR). DeepSeek работает — входит в плоскую GO.
+  Это биллинг, не код.
+- Фикс (spec 001): `isAllowed` в src/core/applicability.ts стал
+  регистронезависимым — `MiniMax-M3` теперь гейтится как `minimax-m3`.
+  Профилактика для прямого api.minimaxi.com.
+- Уточнение: 401 для MiniMax был артефактом неверного upstream. GO-подписка
+  покрывает MiniMax M3, но через endpoint `https://opencode.ai/zen/go`
+  (провайдер opencode-go, формат Anthropic /v1/messages), НЕ через `/zen`
+  (воркспейс zen — платный, отдельный баланс).
+- Фикс (spec 002): pxpipe теперь матчит совместимых провайдеров и на
+  messages-лейне (`src/core/proxy.ts`), upstream MiniMax для GO → zen/go
+  (`src/node.ts`). В opencode.jsonc добавлен override baseURL для провайдера
+  `opencode-go`. Проверено E2E: /v1/messages minimax-m3 через pxpipe → 200,
+  событие логируется.
+- Дополнение (spec 002): zen/go не реализует count_tokens (404) → строки
+  исключались из экономии. Добавлена оценка baseline: input_tokens +
+  imagedChars/3.7 − imagePixels/750 (Math.max(inp)), статус 'estimate'
+  принят гейтами дашборда/сессий. Live: minimax сжался, baseline_tokens=1397
+  estimate, input_tokens=419 → ~70% экономии видно в UI.
+- Починены 2 предсуществующих фейла тестов (Windows-only):
+  docs-integrity — пути нормализуются к `/` в markdownFiles();
+  export-git-e2e — tsx запускается через `node --import tsx` вместо
+  node_modules/.bin/tsx (на Windows .bin без .cmd не spawn-ится).
+  Итог: 647/647 тестов зелёные.

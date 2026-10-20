@@ -1,0 +1,50 @@
+# 18.08.2026
+
+## Продолжение исполнения спеков pxpipe-proxy (спеки 11-16)
+
+Все спекы аудита закрыты реальными коммитами. Полный прогон: 42 файла / 711 тестов, `tsc --noEmit` чист.
+
+### Закрытые в этой сессии
+- SPEC-011 `2687193` — periodic flush: `FileTracker.flush()` ждёт завершения
+  in-flight write (callbacks из emit → pendingWrites/drainWaiters), затем
+  `fs.fsync` на fd открытого стрима; стрим НЕ переоткрывается. Таймер в main():
+  `PXPIPE_FLUSH_INTERVAL_MS` (30000) + `PXPIPE_FLUSH_BYTES_THRESHOLD` (1 MiB),
+  `.unref()`. Хук `Tracker.onBytesWritten?`. Отклонение: fake-timers тест
+  планировщика пропущен (живёт в main(), не DI). tests/tracker-flush.test.ts (3).
+- SPEC-012 `dbb573e` — help для `PXPIPE_MODELS` упрощён (без 9-модельного
+  списка), README-секция «Supported models» с таблицей default-баз
+  (подтверждено: `src/core/applicability.ts:36 DEFAULT_MODEL_BASES`).
+  Тест help-snapshot невозможен (импорт node.ts запускает main()) — проверено
+  вручную `tsx src/node.ts --help`.
+- SPEC-014 `9e93568` — CSP для дашборда: `script-src 'self' 'sha384-…'` без
+  'unsafe-inline'. `dashboardCsp()` в fragments.ts считает хэши из 5 инлайн
+  скриптов (THEME_BOOT_JS вынесен в константу, HTMX/GLUE/THEME/ALPINE).
+  `vendor-ui.mjs` + `VENDOR_INTEGRITY` в vendor.ts. 4 inline onclick/onerror →
+  делегированные `data-pp-*` обработчики в GLUE_JS (CSP ломал их).
+  Header добавлен в `htmlResponse()` (src/dashboard.ts). tests/vendor-integrity (2).
+- SPEC-015 `2593f21` — `PXPIPE_LOG_LEVEL` (debug|info|warn|error, default info).
+  Логгер в `src/log.ts` (не в node.ts — импорт node.ts запускает main()).
+  Уровень читается per-call (live-flip), warnOnce о невалидном значении.
+  Префикс: info → `[pxpipe]`, остальные → `[pxpipe <level>]` (backward compat).
+  Пер-запросные метрики → debug. User-output (--help/--version/export report)
+  остался на console.log. tests/log-level.test.ts (5).
+- SPEC-016 `90ea2d4` — README «Operational notes» (ротация 100MB → `<path>.1`
+  одна генерация; sidecar `4xx-bodies/<iso-ts>-<sha8>.json.gz`, чистит только
+  prune; сигналы). JSDoc prune/sidecar обновлены. Отклонение: спека писала
+  «prune теряет события» — устарело, после SPEC-005 prune использует
+  suspend/resume (буфер в память → flush в новый файл); остаточные риски:
+  cap буфера + краш во время prune.
+
+### Отложено (решение пользователя)
+- SPEC-010 (atlas 5MB → assets/): спека ломает Workers-safe design — атлас
+  использует `atob` («Workers-safe», src/core/atlas.ts:30), а JSON + fs loader
+  требует отдельной упаковки в Workers bundle. Q1 спеки не решена, чеклист
+  требует ручной wrangler deploy. Перейти к ней после решения Workers-стратегии.
+  Альтернатива: gzip-строка в TS + распаковка на лету (сохраняет Workers).
+
+### Технические заметки
+- Импорт `src/node.js` в тестах запускает `main()` → EADDRINUSE на 47821.
+  Поэтому: FileTracker в `src/core/trackers/file-tracker.ts`, логгер в `src/log.ts`.
+- `fs.promises.fsync` НЕ существует в Node — промисать `fs.fsync(fd, cb)`,
+  fd через `(stream as unknown as {fd:number|null}).fd`.
+- Статусы: 15/16 спек закрыты (001-009, 011-016), осталась 010.

@@ -1,0 +1,106 @@
+{
+  "name": "pxpipe-proxy",
+  "version": "0.8.0",
+  "description": "Token-saving proxy for Claude Code: renders bulky context (system prompt, tool docs, old history) as dense PNGs to cut input tokens. Runs on Node and Cloudflare Workers.",
+  "type": "module",
+  "bin": {
+    "pxpipe": "bin/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./transform": {
+      "types": "./dist/core/library.d.ts",
+      "import": "./dist/core/library.js"
+    },
+    "./measurement": {
+      "types": "./dist/core/measurement.d.ts",
+      "import": "./dist/core/measurement.js"
+    },
+    "./applicability": {
+      "types": "./dist/core/applicability.d.ts",
+      "import": "./dist/core/applicability.js"
+    },
+    "./proxy": {
+      "types": "./dist/core/proxy.d.ts",
+      "import": "./dist/core/proxy.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js"
+    }
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "!dist/**/*.map",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:atlas": "tsx scripts/gen-atlas.ts",
+    "dev:node": "tsx watch src/node.ts",
+    "dev:worker": "wrangler dev",
+    "deploy:worker": "wrangler deploy",
+    "restart": "bash scripts/restart.sh",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:restart": "bash tests/restart.test.sh",
+    "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build",
+    "vendor:ui": "node scripts/vendor-ui.mjs"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "fable-5",
+    "proxy",
+    "token-optimization",
+    "prompt-cache",
+    "vision-tokens",
+    "cloudflare-workers"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.21.0",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240512.0",
+    "@napi-rs/canvas": "^0.1.53",
+    "@types/node": "^20.12.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.10.0",
+    "typescript": "^5.4.0",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.6",
+    "wrangler": "^4.92.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "ws@>=8.0.0 <8.20.1": "^8.20.1",
+      "vite@>=8.0.0 <8.0.16": "^8.0.16",
+      "undici@>=7.0.0 <7.28.0": "^7.28.0",
+      "esbuild@>=0.27.3 <0.28.1": "^0.28.1"
+    }
+  },
+  "dependencies": {
+    "gpt-tokenizer": "^3.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teamchong/pxpipe.git"
+  },
+  "homepage": "https://github.com/teamchong/pxpipe#readme",
+  "bugs": {
+    "url": "https://github.com/teamchong/pxpipe/issues"
+  }
+}
