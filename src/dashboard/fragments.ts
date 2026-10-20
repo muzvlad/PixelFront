@@ -686,8 +686,8 @@ export function renderStatsTableFragment(p: FullStatsPayload): string {
 
 export function renderCompressFragment(): string {
   return `
-<div class="card" style="max-width:800px;margin:0 auto">
-  <h3 class="card-head">Сжать текст в PNG</h3>
+<div>
+  <h3 class="card-head spaced">Сжатие текста</h3>
   <p style="color:var(--txt-dim);margin:0 0 12px">Вставьте текст — получите картинку, которую можно загрузить в чат</p>
   <textarea id="compress-input" rows="12" style="width:100%;font-family:monospace;font-size:13px;background:var(--bg2);color:var(--txt);border:1px solid var(--bdr);border-radius:6px;padding:10px;resize:vertical" placeholder="Вставьте текст сюда..."></textarea>
   <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
@@ -1146,33 +1146,29 @@ export function renderPage(port: number): string {
     <div class="card">
       <h3 class="card-head">Разбивка: изображения vs текст</h3>
       <div id="frag-context-map" hx-get="/fragments/context-map" hx-trigger="load" hx-swap="innerHTML"></div>
-      <h3 class="card-head spaced">Просмотр изображение ↔ исходник</h3>
+      <h3 class="card-head spaced">Просмотр изображения ↔ исходник</h3>
       <div id="frag-latest" hx-get="/fragments/latest" hx-trigger="load, every 2s, pp-refresh" hx-swap="innerHTML"
            hx-vals='js:{pin: window.pp.pin == null ? "" : window.pp.pin, source: window.pp.src ? "1" : ""}'></div>
+      <div id="frag-compress" hx-get="/fragments/compress" hx-trigger="load" hx-swap="innerHTML"></div>
     </div>
   </div>
 </section>
 
 <div class="sections-two">
 <section class="section">
-  <h2 class="section-head">Лучшие сессии <span class="section-sub">по сохранённым токенам</span></h2>
   <div class="card">
+    <h3 class="card-head">Лучшие сессии · по сохранённым токенам</h3>
     <div id="frag-sessions" hx-get="/fragments/sessions" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
   </div>
 </section>
 
 <section class="section">
-  <h2 class="section-head">Полная история <span class="section-sub">все события на диске</span></h2>
   <div class="card">
+    <h3 class="card-head">Полная история · все события на диске</h3>
     <div id="frag-stats" hx-get="/fragments/stats" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
   </div>
 </section>
 </div>
-
-<section class="section">
-  <h2 class="section-head">Сжатие текста <span class="section-sub">ручной инструмент — вставьте текст, получите PNG</span></h2>
-  <div id="frag-compress" hx-get="/fragments/compress" hx-trigger="load" hx-swap="innerHTML"></div>
-</section>
 
 <div class="tray" x-data="{ toasts: [], next: 1 }"
      @pp-toast.window="const id = next++; toasts.push({ id, text: $event.detail.text }); setTimeout(() => toasts = toasts.filter(t => t.id !== id), 5000)">
