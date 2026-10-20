@@ -5,26 +5,33 @@ type LogLevel = keyof typeof LOG_LEVELS;
 
 // Семантические категории для цвета (SPEC-021). Логика цветов:
 //   start   — успешный запуск/готовность   (зелёный)
-//   process — рабочие процессы/маршруты     (оранжевый)
+//   process — рабочие процессы/маршруты     (оранжевый, как --img в дашборде)
+//   notice  — порт/модели/адрес дашборда    (синий, как --txt в дашборде)
 //   restart — остановка/перезапуск          (голубой)
 //   error   — сбои и краши                  (красный/бордовый)
 //   warn    — предупреждения                (жёлтый)
 //   request — обычные запросы               (серый)
 //   debug   — отладка                       (тёмно-серый)
 export type LogCategory =
-  | 'start' | 'process' | 'restart' | 'error' | 'warn' | 'request' | 'debug';
+  | 'start' | 'process' | 'notice' | 'restart' | 'error' | 'warn' | 'request' | 'debug';
 
+// Truecolor: точное совпадение с палитрой дашборда.
+//   --img  #ff5a1f (Сжато в изображения)  → 255;90;31
+//   --txt  #2f7db0 (Оставлено как текст)  → 47;125;176
 const ANSI: Record<LogCategory, string> = {
-  start: '\x1b[32m',   // зелёный
-  process: '\x1b[33m', // оранжевый (жёлто-коричневый)
-  restart: '\x1b[36m', // голубой
-  error: '\x1b[31m',   // красный
-  warn: '\x1b[33m',    // жёлтый
-  request: '\x1b[90m', // серый
-  debug: '\x1b[90m',   // серый
+  start: '\x1b[38;2;63;189;118m',   // зелёный (--good dark)
+  process: '\x1b[38;2;255;90;31m',  // оранжевый (--img)
+  notice: '\x1b[38;2;47;125;176m',  // тёмно-голубой (--txt)
+  restart: '\x1b[38;2;90;163;214m', // голубой (--txt dark)
+  error: '\x1b[38;2;216;72;59m',    // красный (--bad)
+  warn: '\x1b[38;2;183;121;31m',    // жёлтый (--warn)
+  request: '\x1b[38;2;155;145;137m', // серый (--muted)
+  debug: '\x1b[38;2;155;145;137m',  // серый
 };
 const BOLD = '\x1b[1m';
 const RESET = '\x1b[0m';
+
+const PREFIX = '[PixelFront]';
 
 let warnedInvalid = false;
 
@@ -77,8 +84,8 @@ function emit(level: LogLevel, cat: LogCategory, prefix: string, args: unknown[]
 function log(level: LogLevel, ...args: unknown[]): void {
   if (LOG_LEVELS[level] < LOG_LEVELS[currentLogLevel()]) return;
   const cat = LEVEL_CATEGORY[level];
-  // info без явной категории оставляем нейтральным префиксом.
-  const prefix = level === 'info' ? '[pxpipe]' : `[pxpipe ${level}]`;
+  // info без явной категории: `[PixelFront]`; прочие: `[PixelFront warn]` и т.д.
+  const prefix = level === 'info' ? PREFIX : `${PREFIX.slice(0, -1)} ${level}]`;
   emit(level, cat, prefix, args);
 }
 
@@ -91,11 +98,11 @@ export const warn = (...args: unknown[]): void => log('warn', ...args);
 export const error = (...args: unknown[]): void => log('error', ...args);
 
 /** Цветное событие с семантической категорией (SPEC-021):
- *  start — зелёный, process — оранжевый, restart — голубой, request — серый. */
+ *  start — зелёный, process — оранжевый, notice — синий, restart — голубой. */
 export function status(cat: LogCategory, ...args: unknown[]): void {
   if (LOG_LEVELS.info < LOG_LEVELS[currentLogLevel()]) return;
   const tag = label(cat);
-  const prefix = tag ? `[pxpipe] ${tag}` : '[pxpipe]';
+  const prefix = tag ? `${PREFIX} ${tag}` : PREFIX;
   emit('info', cat, prefix, args);
 }
 
@@ -104,6 +111,7 @@ function label(cat: LogCategory): string {
   switch (cat) {
     case 'start': return 'запуск';
     case 'process': return 'работа';
+    case 'notice': return '';
     case 'restart': return 'перезапуск';
     case 'request': return 'запрос';
     default: return '';

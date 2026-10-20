@@ -19,11 +19,11 @@ describe('log level (SPEC-015)', () => {
     errorSpy.mockRestore();
   });
 
-  it('default level = info (debug suppressed, info emitted with plain [pxpipe] prefix)', () => {
+  it('default level = info (debug suppressed, info emitted with plain [PixelFront] prefix)', () => {
     debug('debug-msg');
     info('info-msg');
     expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('debug-msg'));
-    expect(logSpy).toHaveBeenCalledWith('[pxpipe]', 'info-msg');
+    expect(logSpy).toHaveBeenCalledWith('[PixelFront]', 'info-msg');
   });
 
   it('level=warn suppresses debug+info, keeps warn', () => {
@@ -32,7 +32,7 @@ describe('log level (SPEC-015)', () => {
     info('info-msg');
     warn('warn-msg');
     expect(logSpy).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith('[pxpipe warn]', 'warn-msg');
+    expect(warnSpy).toHaveBeenCalledWith('[PixelFront warn]', 'warn-msg');
   });
 
   it('level=error suppresses everything except errors', () => {
@@ -43,15 +43,15 @@ describe('log level (SPEC-015)', () => {
     error('error-msg');
     expect(logSpy).not.toHaveBeenCalled();
     expect(warnSpy).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalledWith('[pxpipe error]', 'error-msg');
+    expect(errorSpy).toHaveBeenCalledWith('[PixelFront error]', 'error-msg');
   });
 
   it('level=debug shows per-request output', () => {
     process.env.PXPIPE_LOG_LEVEL = 'debug';
     debug('debug-msg');
     info('info-msg');
-    expect(logSpy).toHaveBeenCalledWith('[pxpipe debug]', 'debug-msg');
-    expect(logSpy).toHaveBeenCalledWith('[pxpipe]', 'info-msg');
+    expect(logSpy).toHaveBeenCalledWith('[PixelFront debug]', 'debug-msg');
+    expect(logSpy).toHaveBeenCalledWith('[PixelFront]', 'info-msg');
   });
 
   it('invalid level falls back to info with a warning', () => {
@@ -60,7 +60,7 @@ describe('log level (SPEC-015)', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('unknown PXPIPE_LOG_LEVEL: loud'),
     );
-    expect(logSpy).toHaveBeenCalledWith('[pxpipe]', 'info-msg');
+    expect(logSpy).toHaveBeenCalledWith('[PixelFront]', 'info-msg');
   });
 
   it('colors gating: NO_COLOR off, FORCE_COLOR on (SPEC-021)', () => {
@@ -83,8 +83,8 @@ describe('log level (SPEC-015)', () => {
 
   it('status() carries the category label in the prefix (SPEC-021)', () => {
     status('start', 'готово');
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[pxpipe] запуск'), 'готово');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[PixelFront] запуск'), 'готово');
     status('restart', 'стоп');
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[pxpipe] перезапуск'), 'стоп');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[PixelFront] перезапуск'), 'стоп');
   });
 });

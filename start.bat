@@ -1,71 +1,48 @@
 @echo off
-title PixelFront — token-saving proxy
-echo.
-echo  ============================================
-echo   PixelFront
-echo  ============================================
-echo.
+title PixelFront — прокси экономии токенов
 
-:: Config
-:: GO subscription provides API keys automatically.
-:: Proxy forwards them from OpenCode requests.
-:: Leave keys empty for GO subscription.
+:: --- Настройки ---
+:: Подписка GO подставляет ключи автоматически; прокси прокидывает их
+:: из запросов OpenCode. Оставьте ключи пустыми для GO.
 
-:: --- API keys (leave empty for GO) ---
+:: --- API-ключи (пусто для GO) ---
 :: set ANTHROPIC_API_KEY=
 :: set OPENAI_API_KEY=
 :: set DEEPSEEK_API_KEY=
 :: set MIMO_API_KEY=
 
-:: --- Port (must match baseURL in opencode.jsonc) ---
+:: --- Порт (должен совпадать с baseURL в opencode.jsonc) ---
 set PORT=47821
 set HOST=127.0.0.1
 
 if "%PORT%"=="" set PORT=47821
 if "%HOST%"=="" set HOST=127.0.0.1
 
-echo [*] Port: %PORT%
-echo [*] Dashboard: http://127.0.0.1:%PORT%/
-echo.
-echo [*] Supported models:
-echo     - DeepSeek V4 Pro / Flash
-echo     - MiMo V2.5 / V2.5 Pro
-echo     - Claude (if key provided)
-echo     - GPT (if key provided)
-echo.
-echo [*] Open dashboard: http://127.0.0.1:%PORT%/
-echo [*] Ctrl+C to stop
-echo.
-
 if not exist "dist\node.js" (
-    echo [!] Build not found. Building...
-    echo.
+    echo [!] Сборка не найдена, выполняю сборку...
     node scripts/build.mjs
     if errorlevel 1 (
         echo.
-        echo [ERROR] Install dependencies:
+        echo [ОШИБКА] Установите зависимости:
         echo   npm install --legacy-peer-deps
         echo.
         pause
         exit /b 1
     )
-    echo.
 )
 
-:: Kill any previously running pxpipe on this port so we always start fresh.
-echo [*] Stopping old pxpipe instances...
+:: Останавливаю прежние запущенные экземпляры на этом порту.
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr /c:":%PORT%" ^| findstr /c:"LISTENING"') do (
-    echo     killing PID %%p
     taskkill /f /pid %%p >nul 2>&1
 )
 timeout /t 1 /nobreak >nul
 
-:: Open the dashboard in the default browser, then start the proxy.
+:: Открываю дашборд в браузере и запускаю прокси (сообщения выводит сам прокси).
 start "" http://127.0.0.1:%PORT%/
 
 node dist/node.js
 set EXITCODE=%errorlevel%
 echo.
-echo [*] Proxy stopped (exit code %EXITCODE%).
-echo     Press any key to close this window.
+echo [PixelFront] прокси остановлен (код выхода %EXITCODE%).
+echo     Нажмите любую клавишу, чтобы закрыть окно.
 pause >nul

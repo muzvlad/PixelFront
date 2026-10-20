@@ -1242,6 +1242,14 @@ async function main(): Promise<void> {
   const isLoopbackHost =
     opts.host === '127.0.0.1' || opts.host === 'localhost' || opts.host === '::1';
   server.listen(opts.port, opts.host, () => {
+    status('start', 'PixelFront — прокси экономии токенов');
+    status('notice', `порт: ${opts.port}`);
+    status('notice', 'поддерживаемые модели:');
+    status('notice', '  - DeepSeek V4 Pro / Flash');
+    status('notice', '  - MiMo V2.5 / V2.5 Pro / V2.6');
+    status('notice', '  - Claude (если задан ключ)');
+    status('notice', '  - GPT (если задан ключ)');
+    status('notice', `дашборд: http://127.0.0.1:${opts.port}/`);
     status('start', `слушаю на http://${displayHost}:${opts.port}`);
     if (!isLoopbackHost) {
       warn(
@@ -1254,7 +1262,6 @@ async function main(): Promise<void> {
     status('process', `anthropic upstream → ${routes.anthropic}`);
     status('process', `openai upstream → ${routes.openai}`);
     status('process', `события трекинга → ${opts.eventsFile}`);
-    status('start', `дашборд → http://127.0.0.1:${opts.port}/`);
   });
 
   // server.close() only stops accepting new connections and waits for open

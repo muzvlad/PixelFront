@@ -800,20 +800,21 @@ const CSS = `
   /* session hero */
   #frag-session { display: block; margin-bottom: 16px; }
   .hero { background: linear-gradient(135deg, var(--flame-tint), var(--surface) 60%); border: 1px solid var(--border);
-    border-left: 4px solid var(--flame); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow);
-    max-width: 560px; }
+    border-left: 4px solid var(--flame); border-radius: var(--radius); padding: 16px 22px; box-shadow: var(--shadow);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; }
   .hero-neg { border-left-color: var(--bad); }
   .hero-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--muted); margin-bottom: 8px; }
-  .hero-headline { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; line-height: 1.1; }
-  .hero-num { font-size: 28px; font-weight: 800; line-height: 1.1; margin-right: 2px;
+    color: var(--muted); margin-bottom: 6px; flex-basis: 100%; }
+  .hero-headline { font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; line-height: 1.1;
+    flex: 0 0 auto; }
+  .hero-num { font-size: 24px; font-weight: 800; line-height: 1.1; margin-right: 2px;
     background: linear-gradient(135deg, #ff9a4d, var(--flame) 55%, var(--flame-strong));
     -webkit-background-clip: text; background-clip: text; color: transparent;
     font-variant-numeric: tabular-nums; }
   .hero-neg .hero-num { background: linear-gradient(135deg, #f0857a, var(--bad));
     -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero-sub { font-size: 14.5px; color: var(--ink-2); margin-top: 12px; max-width: 720px; }
-  .hero-meta { font-size: 12px; color: var(--muted); margin-top: 10px; padding-top: 10px;
+  .hero-sub { font-size: 14px; color: var(--ink-2); flex: 1 1 260px; }
+  .hero-meta { font-size: 12px; color: var(--muted); flex-basis: 100%; margin-top: 8px; padding-top: 8px;
     border-top: 1px dashed var(--border-strong); }
   .hero-empty .hero-headline { color: var(--muted); font-size: 24px; }
 
