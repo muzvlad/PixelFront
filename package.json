@@ -97,10 +97,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/teamchong/pxpipe.git"
+    "url": "git+https://github.com/muzvlad/Econom.git"
   },
-  "homepage": "https://github.com/teamchong/pxpipe#readme",
+  "homepage": "https://github.com/muzvlad/Econom#readme",
   "bugs": {
-    "url": "https://github.com/teamchong/pxpipe/issues"
+    "url": "https://github.com/muzvlad/Econom/issues"
   }
 }
