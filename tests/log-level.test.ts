@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { debug, info, warn, error } from '../src/log.js';
+import { debug, info, warn, error, status, colorsEnabled } from '../src/log.js';
 
 describe('log level (SPEC-015)', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
@@ -61,5 +61,30 @@ describe('log level (SPEC-015)', () => {
       expect.stringContaining('unknown PXPIPE_LOG_LEVEL: loud'),
     );
     expect(logSpy).toHaveBeenCalledWith('[pxpipe]', 'info-msg');
+  });
+
+  it('colors gating: NO_COLOR off, FORCE_COLOR on (SPEC-021)', () => {
+    const savedNoColor = process.env.NO_COLOR;
+    const savedForce = process.env.FORCE_COLOR;
+    try {
+      process.env.NO_COLOR = '1';
+      delete process.env.FORCE_COLOR;
+      expect(colorsEnabled()).toBe(false);
+      delete process.env.NO_COLOR;
+      process.env.FORCE_COLOR = '1';
+      expect(colorsEnabled()).toBe(true);
+    } finally {
+      if (savedNoColor === undefined) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = savedNoColor;
+      if (savedForce === undefined) delete process.env.FORCE_COLOR;
+      else process.env.FORCE_COLOR = savedForce;
+    }
+  });
+
+  it('status() carries the category label in the prefix (SPEC-021)', () => {
+    status('start', 'готово');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[pxpipe] запуск'), 'готово');
+    status('restart', 'стоп');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[pxpipe] перезапуск'), 'стоп');
   });
 });

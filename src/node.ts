@@ -35,7 +35,7 @@ import {
 import { setActiveTracker } from './tracker-coordinator.js';
 import { validateConfig, buildWalkSkipDirs } from './config.js';
 import { FileTracker } from './core/trackers/file-tracker.js';
-import { debug, info, warn, error } from './log.js';
+import { debug, info, warn, error, status } from './log.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
  *  transform.ts; startup knobs cover deployment plus emergency GPT scope
@@ -1029,7 +1029,7 @@ async function main(): Promise<void> {
   // A/B harness passthrough switch (see the `transform` callback below).
   const forcePassthrough = /^(1|true|yes|on)$/i.test(process.env.PXPIPE_DISABLE ?? '');
   if (forcePassthrough) {
-    info('PXPIPE_DISABLE set — passthrough mode (compress=false), still logging usage + baselines');
+    status('restart', 'PXPIPE_DISABLE задан — режим пропуска (сжатие выключено), но расчёт базлайна и логирование сохраняются');
   }
   // Debug aid: when PXPIPE_DUMP_DIR is set, persist every rendered PNG this
   // process emits, so you can eyeball exactly what the model received (OCR /
@@ -1041,9 +1041,9 @@ async function main(): Promise<void> {
   if (imageDumpDir) {
     try {
       fs.mkdirSync(imageDumpDir, { recursive: true });
-      info(`PXPIPE_DUMP_DIR set — dumping rendered PNGs to ${imageDumpDir}`);
+      status('process', `PXPIPE_DUMP_DIR задан — сохраняю отрисованные PNG в ${imageDumpDir}`);
     } catch (err) {
-      warn(`PXPIPE_DUMP_DIR unusable (${(err as Error).message}) — image dumping disabled`);
+      warn(`PXPIPE_DUMP_DIR недоступен (${(err as Error).message}) — сохранение изображений выключено`);
       imageDumpDir = undefined;
     }
   }
@@ -1083,7 +1083,7 @@ async function main(): Promise<void> {
         await tracker.flush?.();
         bytesSinceLastFlush = 0;
       } catch (err) {
-        warn(`tracker flush failed: ${(err as Error).message}`);
+        warn(`не удалось сбросить трекер на диск: ${(err as Error).message}`);
       }
     }
   }, FLUSH_INTERVAL_MS);
@@ -1242,19 +1242,19 @@ async function main(): Promise<void> {
   const isLoopbackHost =
     opts.host === '127.0.0.1' || opts.host === 'localhost' || opts.host === '::1';
   server.listen(opts.port, opts.host, () => {
-    info(`listening on http://${displayHost}:${opts.port}`);
+    status('start', `слушаю на http://${displayHost}:${opts.port}`);
     if (!isLoopbackHost) {
       warn(
-        `bound to ${opts.host} — the unauthenticated dashboard ` +
-          `(captured request context + kill switch) is reachable off-host. ` +
-          `Unset HOST to restrict to loopback.`,
+        `прокси привязан к ${opts.host} — дашборд без аутентификации ` +
+          `(захваченный контекст запросов + kill switch) доступен извне сети. ` +
+          `Уберите HOST, чтобы ограничить loopback.`,
       );
     }
     const routes = resolveUpstreams(config);
-    info(`anthropic upstream → ${routes.anthropic}`);
-    info(`openai upstream → ${routes.openai}`);
-    info(`tracking events → ${opts.eventsFile}`);
-    info(`dashboard → http://127.0.0.1:${opts.port}/`);
+    status('process', `anthropic upstream → ${routes.anthropic}`);
+    status('process', `openai upstream → ${routes.openai}`);
+    status('process', `события трекинга → ${opts.eventsFile}`);
+    status('start', `дашборд → http://127.0.0.1:${opts.port}/`);
   });
 
   // server.close() only stops accepting new connections and waits for open
@@ -1266,11 +1266,11 @@ async function main(): Promise<void> {
   let shuttingDown = false;
   const shutdown = async (sig: string) => {
     if (shuttingDown) {
-      info(`${sig} again — forcing exit`);
+      status('restart', `${sig} повторно — принудительный выход`);
       process.exit(130);
     }
     shuttingDown = true;
-    info(`${sig} — shutting down`);
+    status('restart', `${sig} — останавливаюсь`);
     // Flush+close the tracker so we don't drop the last few events on exit.
     if (tracker instanceof FileTracker) await tracker.close();
     setActiveTracker(null);
@@ -1295,13 +1295,13 @@ async function main(): Promise<void> {
 // and keep serving; per-request errors are already contained in the server
 // handler above, so reaching here means a background task.
 process.on('unhandledRejection', (reason) => {
-  warn(`unhandled rejection (kept alive): ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+  warn(`необработанный rejection (процесс жив): ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
 });
 process.on('uncaughtException', (err) => {
-  error(`uncaught exception (kept alive): ${err.stack ?? err.message}`);
+  error(`необработанное исключение (процесс жив): ${err.stack ?? err.message}`);
 });
 
 main().catch((err) => {
-  error('fatal:', err);
+  error('фатальная ошибка:', err);
   process.exit(1);
 });
