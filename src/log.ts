@@ -118,4 +118,21 @@ function label(cat: LogCategory): string {
   }
 }
 
+// Inline-стили для частей сообщения (без цвета при выключенных цветах).
+const ITALIC = '\x1b[3m';
+const FG_GRAY = '\x1b[38;2;155;145;137m';
+const FG_BRIGHT_GREEN = '\x1b[38;2;80;230;120m';
+
+/** Тусклый курсив — для пояснений вроде «(если задан ключ)». */
+export function dimItalic(text: string): string {
+  if (!colorsEnabled()) return text;
+  return `${ITALIC}${FG_GRAY}${text}${RESET}`;
+}
+
+/** Ярко-зелёный — для выделения значимых значений (адрес дашборда). */
+export function bright(text: string): string {
+  if (!colorsEnabled()) return text;
+  return `${FG_BRIGHT_GREEN}${text}${RESET}`;
+}
+
 export { colorsEnabled, BOLD, RESET };

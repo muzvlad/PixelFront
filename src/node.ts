@@ -35,7 +35,7 @@ import {
 import { setActiveTracker } from './tracker-coordinator.js';
 import { validateConfig, buildWalkSkipDirs } from './config.js';
 import { FileTracker } from './core/trackers/file-tracker.js';
-import { debug, info, warn, error, status } from './log.js';
+import { debug, info, warn, error, status, dimItalic, bright } from './log.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
  *  transform.ts; startup knobs cover deployment plus emergency GPT scope
@@ -1242,14 +1242,16 @@ async function main(): Promise<void> {
   const isLoopbackHost =
     opts.host === '127.0.0.1' || opts.host === 'localhost' || opts.host === '::1';
   server.listen(opts.port, opts.host, () => {
+    // ponytail: заголовок окна ставим из node (bat+chcp не надёжны с кириллицей).
+    process.stdout.write('\x1b]0;PixelFront - Запущен\x07');
     status('start', 'PixelFront — прокси экономии токенов');
     status('notice', `порт: ${opts.port}`);
     status('notice', 'поддерживаемые модели:');
     status('notice', '  - DeepSeek V4 Pro / Flash');
     status('notice', '  - MiMo V2.5 / V2.5 Pro / V2.6');
-    status('notice', '  - Claude (если задан ключ)');
-    status('notice', '  - GPT (если задан ключ)');
-    status('notice', `дашборд: http://127.0.0.1:${opts.port}/`);
+    status('notice', `  - Claude ${dimItalic('(если задан ключ)')}`);
+    status('notice', `  - GPT ${dimItalic('(если задан ключ)')}`);
+    status('notice', `дашборд: ${bright(`http://127.0.0.1:${opts.port}/`)} ⧉`);
     status('start', `слушаю на http://${displayHost}:${opts.port}`);
     if (!isLoopbackHost) {
       warn(
