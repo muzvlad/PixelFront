@@ -1,3 +1,8 @@
+# Secrets — never commit tokens or keys
+.env
+.env.*
+*.token
+.gh_token
 # Node / TS
 node_modules/
 dist/
