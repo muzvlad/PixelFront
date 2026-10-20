@@ -198,7 +198,7 @@ export function renderSessionSummaryFragment(s: StatsPayload): string {
     `<div class="hero-sub">` +
     `<strong>${kFmt(actualW)}</strong> эффективных токенов вместо <strong>${kFmt(baselineW)}</strong> ` +
     `если бы тот же контекст остался текстом — оба значения с учётом кеша с момента запуска прокси. ` +
-    `Ваши последние сообщения и ответ Claude никогда не сжимаются.` +
+    `Ваши последние сообщения и ответ модели никогда не сжимаются.` +
     `</div>` +
     `<div class="hero-meta">` +
     `В токен-эквиваленте: cache_read ×0.1, cache_create ×1.25 (ставки Anthropic) · ` +
@@ -416,7 +416,7 @@ export function renderContextMapFragment(
 
   const ids = c.imageIds ?? [];
   const gallery = ids.length
-    ? `<div class="pages-title">${ids.length} стр.${ids.length === 1 ? '' : ''} отправлено Claude — нажмите, чтобы прочитать исходный текст:</div>` +
+    ? `<div class="pages-title">${ids.length} стр.${ids.length === 1 ? '' : ''} отправлено модели — нажмите, чтобы прочитать исходный текст:</div>` +
       `<div class="pages">` +
       ids
         .map(
@@ -461,7 +461,7 @@ export function renderContextMapFragment(
     `<div class="split-col split-txt">` +
     `<div class="split-head">Оставлено как текст <span class="split-sum">точно</span></div>` +
     `<div class="ctx-row"><span class="ctx-lbl">Ваши последние сообщения</span><span class="ctx-val">дословно</span></div>` +
-    `<div class="ctx-row"><span class="ctx-lbl">Ответ Claude (выход)</span><span class="ctx-val">${kFmt(c.output)} ток</span></div>` +
+    `<div class="ctx-row"><span class="ctx-lbl">Ответ модели (выход)</span><span class="ctx-val">${kFmt(c.output)} ток</span></div>` +
     `<div class="split-note">никогда не сжимается — безопасно для ID, хешей и точных чисел.</div>` +
     `</div>` +
     `</div>` +
@@ -597,7 +597,7 @@ export function renderLatestFragment(inp: LatestFragmentInput): string {
       sourceText == null
         ? `<div class="evicted">исходный текст не сохранён</div>`
         : `<div class="pairing">` +
-          `<div class="pair-col"><div class="pair-head pair-img">Что видит Claude · изображение</div><div class="frame frame-sm"><img src="${imgSrc}" alt="отрисованная страница" /></div></div>` +
+          `<div class="pair-col"><div class="pair-head pair-img">Что видит модель · изображение</div><div class="frame frame-sm"><img src="${imgSrc}" alt="отрисованная страница" /></div></div>` +
           `<div class="pair-mid">сделано из ↓</div>` +
           `<div class="pair-col"><div class="pair-head pair-txt">Исходный текст · точно</div><pre class="src-pane">${escapeHtml(sourceText)}</pre></div>` +
           `</div>`;
