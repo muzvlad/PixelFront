@@ -31,12 +31,14 @@ let runtimeModelBases: readonly string[] | null = null;
  *  degrades on imaged history/context) — so silently imaging them is the wrong
  *  default. Both stay opt-in via the dashboard chips or PXPIPE_MODELS.
  *  DeepSeek V4 and MiMo V2.5 are OpenAI-compatible and enabled by default
- *  for GO-subscription users. MiniMax M3 is multimodal (image-capable) and also
+ *  for GO-subscription users. MiMo V2.6 (Pro/Flash) is native-vision (verified
+ *  omni-modal, OCR + GUI pre-training) and joins the default scope with its own
+ *  patch-billed profile. MiniMax M3 is multimodal (image-capable) and also
  *  available to GO subscribers, so it shares the default scope. */
 const DEFAULT_MODEL_BASES = [
   'claude-fable-5', 'gpt-5.6',
   'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-free', 'deepseek-v3',
-  'mimo-v2.5-pro', 'mimo-v2.5',
+  'mimo-v2.5-pro', 'mimo-v2.5', 'mimo-v2.6',
   'minimax-m3',
 ];
 

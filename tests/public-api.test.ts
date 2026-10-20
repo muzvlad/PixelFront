@@ -4,6 +4,8 @@ import {
   getAllowedModelBases,
   isPxpipeSupportedGptModel,
   isPxpipeSupportedModel,
+  openAIVisionTokens,
+  resolveGptProfile,
   setAllowedModelBases,
   shouldTransformAnthropicMessages,
   transformAnthropicMessages,
@@ -94,6 +96,27 @@ describe('public library API', () => {
     expect(isPxpipeSupportedGptModel('Minimax-M3-250830')).toBe(true);
     expect(isPxpipeSupportedGptModel('GPT-5.6')).toBe(true);
     expect(isPxpipeSupportedGptModel('DeepSeek-V4-Pro')).toBe(true);
+  });
+
+  it('enables MiMo V2.6 in the default scope without touching MiniMax/V2.5', () => {
+    expect(isPxpipeSupportedGptModel('mimo-v2.6-pro')).toBe(true);
+    expect(isPxpipeSupportedGptModel('mimo-v2.6-flash')).toBe(true);
+    expect(isPxpipeSupportedGptModel('MiMo-V2.6-Pro-Ultraspeed')).toBe(true);
+    // Neighbours stay exactly as before.
+    expect(isPxpipeSupportedGptModel('minimax-m3')).toBe(true);
+    expect(isPxpipeSupportedGptModel('mimo-v2.5-pro')).toBe(true);
+  });
+
+  it('prices MiMo V2.6 as a patch regime above the generic MiMo tile rule', () => {
+    expect(resolveGptProfile('mimo-v2.6-pro').vision).toEqual({ regime: 'patch', multiplier: 1, patchCap: 8192 });
+    // V2.5 keeps its conservative tile pricing — the new rule must not leak down.
+    expect(resolveGptProfile('mimo-v2.5-pro').vision).toEqual({ regime: 'tile', base: 85, perTile: 170 });
+    expect(resolveGptProfile('minimax-m3').vision).toEqual({ regime: 'tile', base: 85, perTile: 170 });
+    // 1520×1932 → ceil(1520/32)=48? no: 1520/32=47.5 → 48, 1932/32=60.4 → 61;
+    // but the model strips to 1504×1920 (mult of 32) → 47×60 = 2820 tokens,
+    // matching Xiaomi's pixels/1024. Assert against the same formula the model uses.
+    const w = 1504, h = 1920;
+    expect(openAIVisionTokens('mimo-v2.6-pro', w, h)).toBe(Math.ceil((w / 32) * (h / 32)));
   });
 
   it('recognizes GPT 5.6 as the default OpenAI imaging scope (5.5 opt-in)', () => {

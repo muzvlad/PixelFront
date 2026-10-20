@@ -34,7 +34,7 @@ export {
   type RecoverableBlock,
 } from './transform.js';
 export { transformOpenAIChatCompletions, transformOpenAIResponses, resolveVisionCost, openAIVisionTokens } from './openai.js';
-export { isVisionModel } from './gpt-model-profiles.js';
+export { isVisionModel, resolveGptProfile } from './gpt-model-profiles.js';
 export { createProxy, type ProxyConfig, type ProxyEvent, type CompatibleProvider } from './proxy.js';
 export {
   computeActualInputEff,
