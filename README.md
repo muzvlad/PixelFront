@@ -1,358 +1,180 @@
-# pxpipe
+# PixelFront
 
-**Cut Claude Code's input tokens by rendering bulky context as images — the same system prompt, tool docs, and history, in a fraction of the tokens.**
+**Локальный прокси, который экономит входные токены: объёмный контекст (системный промпт, доки инструментов, старая история) отправляется в модель компактными PNG вместо текста.**
 
-An image's token cost is fixed by its pixel dimensions, not by how much text
-is inside it. Dense content (code, JSON, tool output) packs ~3.1 chars per
-image-token vs ~1 char per text-token on real Claude Code traffic. The
-reader is the same vision channel that Anthropic's computer use already
-relies on for screenshots. pxpipe is a local proxy that uses that channel
-for context: it rewrites the bulky parts of each request into compact PNGs
-before it leaves your machine. At current Fable
-list prices that lands as a **~59–70% lower end-to-end bill** — but prices
-move and workloads differ, so the durable number is the token cut itself,
-measured per-request against a free `count_tokens` counterfactual in
-`~/.pxpipe/events.jsonl`.
+Стоимость картинки определяется её размерами в пикселях, а не количеством текста внутри. Плотный контент (код, JSON, вывод инструментов) упаковывается в примерно 3.1 символа на один image-токен против ~1 символа на text-токен на реальном трафике Claude Code. Читает это та же vision-канал, на которую уже опирается computer use в Anthropic. PixelFront — локальный прокси, который переписывает объёмные части каждого запроса в компактные PNG ещё до того, как они покинут вашу машину.
 
-This is what the model sees instead of text:
+Прокси сжимает **только запрос**. Ответ модели никогда не трогается и стримится как обычно.
 
-![example: a real `transformRequest` output: system prompt + tool docs reflowed into one dense 1573×1248 page, instruction banner on top, ↵ marking original newlines](https://raw.githubusercontent.com/teamchong/pxpipe/main/docs/assets/example-render.png)
+## Что это даёт
 
-*~48k chars of system prompt + tool docs: ≈25k tokens as text, ≈2.7k image
-tokens as this page. Real pipeline output; the model reads renders like this
-at 100/100 (see benchmarks).*
+- Контекст остаётся читаемым для модели, но занимает меньше токенов.
+- Работает локально: `127.0.0.1:47821`, дашборд на том же порту.
+- Прозрачно: сайд-бай-сайд видно, что стало изображением, а что осталось текстом.
+- Аварийный выключатель сжатия одной кнопкой в дашборде.
 
-## Demo
+## Быстрый старт
 
-**Fable 5 (the default, 100/100 reader) — plain left, pxpipe right:**
-
-https://github.com/user-attachments/assets/1c8ee63a-fcd7-4958-917b-da788d718349
-
-pxpipe counts an exact token **10/10** across 39 imaged filler files
-(matches `grep` line-for-line), gets the multi-step ledger arithmetic right,
-and ends the session at **$6.06** with context to spare (73.5k/1M) vs
-**$42.21** at 96% full. One caveat visible in the clip: the pxpipe arm
-needed a nudge to match the requested one-line output format.
-
-**Opus 4.8 (disabled by default) — same layout:**
-
-https://github.com/user-attachments/assets/f4e50137-31b5-426f-a6ed-b83f829b4a2c
-
-Text needles read fine on both arms; the imaged phrase-count doesn't read on
-Opus — and pxpipe **says so instead of fabricating a number**. That misread
-rate is why Opus is opt-in.
-
-## Try it (30 seconds)
-
-```bash
-npx pxpipe-proxy                                  # proxy on 127.0.0.1:47821
-ANTHROPIC_BASE_URL=http://127.0.0.1:47821 claude  # point Claude Code at it
+```bat
+start.bat
 ```
 
-Dashboard at <http://127.0.0.1:47821/>: tokens saved, every text→image
-conversion side by side, kill switch, live model chips. Responses stream
-normally — pxpipe compresses the *request* only, never the model's output.
-Recent turns stay text; the system prompt, tool docs, and older bulk history
-are imaged.
+`start.bat` собирает `dist/` (если нужно), освобождает порт `47821`, открывает дашборд и запускает прокси: `node dist/node.js`.
 
-## The honest part
+Направьте клиент на прокси:
 
-- **It is lossy.** Exact 12-char hex strings in dense imaged content:
-  **13/15** on Fable 5, **0/15** on Opus — and misses are *silent
-  confabulations*, not errors. Byte-exact values (IDs, hashes, secrets)
-  must stay text; recent turns do. A dedicated verbatim-risk guard is not
-  built yet.
-- **Escape hatch:** subagents on non-allowlisted models pass through as
-  text — route byte-exact work there
-  (`CLAUDE_CODE_SUBAGENT_MODEL=claude-sonnet-4-6`, or `model: sonnet` in
-  agent frontmatter).
-- **Real work:** SWE-bench Lite pilot **10/10 both arms** at −65% request
-  size; SWE-bench Pro **14/19 ON vs 15/19 OFF** at −60%, verdicts agree
-  18/19, and the single split re-resolved 3/3 on replication — run-to-run
-  variance, not compression. Small n; receipts in `eval/`.
-- **Workload-dependent.** Wins on token-dense content (~1 char/token),
-  loses money on sparse prose (~3.5 chars/token); a profitability gate
-  (calibrated on N=391 production rows) images only where the math wins.
-- **Model scope:** default `PXPIPE_MODELS=claude-fable-5,gpt-5.6`. Opus
-  4.7/4.8 misread ~7% of renders and GPT 5.5 degrades on imaged context, so
-  both are opt-in via `PXPIPE_MODELS` or the dashboard chips.
-  `PXPIPE_MODELS=off` disables imaging. Everything else passes through
-  byte-identical. On the GPT path, tool definitions stay native JSON and no
-  Anthropic `cache_control` markers are used.
+```
+ANTHROPIC_BASE_URL=http://127.0.0.1:47821 claude
+```
 
-**Event-log durability:** the proxy fsyncs the JSONL log periodically instead
-of per-request (fast writes, low crash loss). Tune with
-`PXPIPE_FLUSH_INTERVAL_MS` (default 30000) and `PXPIPE_FLUSH_BYTES_THRESHOLD`
-(default 1048576) — a flush fires when the interval elapses AND at least that
-many bytes accumulated.
+Для OpenAI-совместимого пути:
 
-## Supported models
+```
+OPENAI_BASE_URL=http://127.0.0.1:47821/v1
+```
 
-`PXPIPE_MODELS` accepts a comma-separated list of model bases. The built-in
-default covers the following:
+Дашборд: <http://127.0.0.1:47821/> — сэкономленные токены, каждая конверсия текст→изображение, выключатель сжатия, переключатели моделей, плейграунд «сжать текст в картинку».
 
-| Value | Provider | Notes |
+> Подписка OpenCode GO подставляет ключи автоматически — прокси прокидывает их из запросов клиента. Оставьте `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `MIMO_API_KEY` пустыми, если используете GO.
+
+### Запуск без bat
+
+```bash
+npm install && npm run build
+node dist/node.js
+```
+
+## Поддерживаемые модели
+
+Сжатие включено по умолчанию для:
+
+| База модели | Провайдер | Примечание |
 |---|---|---|
-| `claude-fable-5` | Anthropic (Fable 5) | Alias, requires OpenCode GO subscription |
-| `gpt-5.6` | OpenAI (GPT 5.6) | Alias, requires OpenCode GO subscription |
-| `deepseek-v4-pro` | DeepSeek V4 Pro | OpenAI-compatible |
-| `deepseek-v4-flash` | DeepSeek V4 Flash | OpenAI-compatible |
-| `deepseek-v4-flash-free` | DeepSeek V4 Flash Free | Via OpenCode GO subscription |
-| `deepseek-v3` | DeepSeek V3 | OpenAI-compatible |
-| `mimo-v2.5-pro` / `mimo-v2.5` | Xiaomi MiMo V2.5 | OpenAI-compatible |
-| `minimax-m3` | MiniMax M3 | Multimodal; OpenCode GO subscription |
-| `moonshotai/kimi-k3` | Moonshot Kimi K3 via NVIDIA NIM | Passthrough (no compression) |
-| `nvidia/nemotron-*` | NVIDIA Nemotron via NVIDIA NIM | Text-only; passthrough |
-| `minimaxai/minimax-m3` | MiniMax M3 via NVIDIA NIM | Routed to NVIDIA, not GO |
-| `big-pickle` | Big Pickle via OpenCode Zen | Passthrough; client key forwarded |
+| `claude-fable-5` | Anthropic (Fable 5) | требует подписку OpenCode GO |
+| `gpt-5.6` | OpenAI (GPT 5.6) | требует подписку OpenCode GO |
+| `deepseek-v4-pro` | DeepSeek V4 Pro | OpenAI-совместимый |
+| `deepseek-v4-flash` | DeepSeek V4 Flash | OpenAI-совместимый |
+| `deepseek-v4-flash-free` | DeepSeek V4 Flash Free | через OpenCode GO |
+| `deepseek-v3` | DeepSeek V3 | OpenAI-совместимый |
+| `mimo-v2.5-pro` / `mimo-v2.5` | Xiaomi MiMo V2.5 | OpenAI-совместимый |
+| `mimo-v2.6` | Xiaomi MiMo V2.6 | нативное зрение; patch-биллинг |
+| `minimax-m3` | MiniMax M3 | мультимодальный; через OpenCode GO |
 
-Models with an org prefix (`moonshotai/*`, `nvidia/*`, `minimaxai/*`) route to
-the NVIDIA NIM catalog (`NVIDIA_UPSTREAM`, default
-`https://integrate.api.nvidia.com`; set `NVIDIA_API_KEY` or the client's
-`Authorization` is forwarded). These models are **not** compressed — requests
-pass through unchanged; pxpipe provides logging and the dashboard for them.
+Модели только для маршрутизации (проходят насквозь, без сжатия, но логируются и видны в дашборде):
 
-Matching is a prefix test (case-insensitive): `PXPIPE_MODELS=deepseek-*`
-enables every DeepSeek base above.
+- `moonshotai/kimi-k3`, `nvidia/nemotron-*`, `minimaxai/minimax-m3` — через NVIDIA NIM (`NVIDIA_UPSTREAM`, по умолчанию `https://integrate.api.nvidia.com`).
+- `big-pickle` — каталог OpenCode Zen, ключ клиента прокидывается.
 
-### Customizing
+Отключены по умолчанию, включаются в дашборде или через `PXPIPE_MODELS`: `claude-opus-4-8`, `claude-opus-4-7`, `claude-sonnet-5`, `claude-sonnet-4-6`, `gpt-5.5` — читают изображения заметно хуже, поэтому никогда не сжимаются молча.
+
+Сопоставление — точное совпадение базы или префикс `<база>-`, регистронезависимо. Теги вида `[1m]` отбрасываются. Глобы (`deepseek-*`) **не** поддерживаются — перечисляйте базы явно.
+
+### Настройка области сжатия
 
 ```bash
-# Disable all compression:
-PXPIPE_MODELS=off pxpipe
-
-# Only Claude:
-PXPIPE_MODELS=claude-fable-5 pxpipe
-
-# Claude + DeepSeek:
-PXPIPE_MODELS=claude-fable-5,deepseek-* pxpipe
+PXPIPE_MODELS=off pixelfront                 # выключить всё сжатие
+PXPIPE_MODELS=claude-fable-5 pixelfront      # только Claude
+PXPIPE_MODELS=claude-fable-5,deepseek-v4-pro pixelfront
 ```
 
-## Operational notes
+Значение читается на каждом запросе, поэтому переключение в дашборде применяется сразу. Переключатели в дашборде держатся в памяти и сбрасываются при перезапуске.
 
-### Log file location
+## Дашборд
 
-By default, per-request events are written to:
+Дашборд на русском, шрифт Lora. Поллит серверные фрагменты (htmx), тёмная/светлая тема, всплывающие уведомления.
 
-```
-~/.pxpipe/events.jsonl
-```
+- **Заголовок**: выключатель сжатия (`Включить` / `Выключить сжатие`), переключатели моделей (Claude / GPT / совместимые).
+- **Hero**: «С момента запуска · Сжато запросов: N», процент экономии с учётом кеша.
+- **Плитки**: Запросы, Сохранено входных токенов, Примерная экономия, Стоимость запроса.
+- **Показать формулы и расчёты**: все формулы и веса, по которым посчитаны числа.
+- **Последние запросы**: таблица по запросам (статус, эндпоинт, модель, что отправлено, кеш, экономия).
+- **Разбивка: изображения vs текст**: что именно стало картинкой.
+- **Просмотр изображения ↔ исходник**: изображение рядом с точным исходным текстом.
+- **Сжатие текста**: плейграунд — вставьте текст, получите картинку для чата.
+- **Лучшие сессии** и **Полная история**: агрегаты по сохранённым токенам и все события на диске.
 
-Override with `PXPIPE_LOG=/path/to/file.jsonl`.
+### Как считаются числа
 
-The file rotates when it exceeds **100 MB** — the current file is renamed to
-`<path>.1` (overwriting any previous `.1`) and a fresh file is opened. We keep
-**one generation** of history; for longer retention, archive the file yourself
-before rotation.
+Для каждого `POST /v1/messages` прокси параллельно с реальным запросом делает бесплатный `count_tokens`-пробник по исходному несжатому телу (контрфакт) и читает фактически забиленное `usage` из ответа. Оба значения попадают в одну строку `~/.pxpipe/events.jsonl`, поэтому нет перекоса по числу ходов.
 
-### 4xx body sidecars
+Долларовая конвертация использует ставки Anthropic: вход ×1.0, создание кеша ×1.25, чтение кеша ×0.10, выход ×5. Цены кеша применяются к обеим сторонам одинаково, поэтому скидка за кеш сокращается и не может быть засчитана как «экономия». Формулы и имена полей — в `src/core/baseline.ts`.
 
-Failed upstream requests (4xx) may carry a large body. Instead of inflating the
-JSONL log, the gzipped body is written to:
+## Переменные среды
 
-```
-~/.pxpipe/4xx-bodies/<iso-timestamp>-<sha8>.json.gz
-```
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `PORT` | `47821` | порт прокси и дашборда |
+| `HOST` | `127.0.0.1` | адрес прослушивания; `0.0.0.0` открывает дашборд наружу (без аутентификации) |
+| `PXPIPE_MODELS` | встроенный список | CSV баз, или `off/0/false/no/none` |
+| `PXPIPE_CONFIG` | `~/.config/pxpipe/config.json` | JSON-конфиг (ключ `models`); env приоритетнее |
+| `PXPIPE_LOG` | `~/.pxpipe/events.jsonl` | путь журнала событий |
+| `PXPIPE_LOG_LEVEL` | `info` | `debug\|info\|warn\|error` |
+| `PXPIPE_DISABLE` | — | `1/true/yes/on` — режим пропуска (сжатие выкл., расчёт базлайна и логирование остаются) |
+| `PXPIPE_DUMP_DIR` | — | сохранять все отрисованные PNG в эту папку |
+| `PXPIPE_FLUSH_INTERVAL_MS` | `30000` | интервал fsync журнала |
+| `PXPIPE_FLUSH_BYTES_THRESHOLD` | `1048576` | порог байт для fsync журнала |
+| `PXPIPE_SKIP_DIRS` | — | доп. папки, пропускаемые `export` |
+| `PXPIPE_GPT_PROFILES` | — | JSON-профили отрисовки/стоимости для GPT-моделей |
+| `PXPIPE_UPSTREAM` | — | общий базовый upstream для всех семейств |
+| `ANTHROPIC_UPSTREAM` | `https://api.anthropic.com` | upstream Anthropic |
+| `OPENAI_UPSTREAM` | `https://api.openai.com` | upstream OpenAI |
+| `NVIDIA_UPSTREAM` | `https://integrate.api.nvidia.com` | upstream NVIDIA NIM |
+| `NO_COLOR` / `PXPIPE_NO_COLOR` | — | отключить цветной вывод |
+| `FORCE_COLOR` / `PXPIPE_FORCE_COLOR` | — | включить цветной вывод принудительно |
 
-The path is recorded in the matching `events.jsonl` row as
-`req_body_sample_path`. To inspect:
-`zcat ~/.pxpipe/4xx-bodies/2026-08-17T10-00-00-123Z-abcd1234.json.gz | jq`.
-Sidecars are deleted when `prune` removes their owning session; they are **not**
-cleaned by log rotation, so monitor that directory's disk usage separately.
+## CLI
 
-### Pruning sessions
-
-The dashboard's "Cleanup" tab prunes old sessions from `events.jsonl` and
-deletes their sidecar files.
-
-Concurrency: `prune` rewrites the log via rename, but the live tracker is
-paused (suspend/resume) around the rewrite, so events written during the prune
-are buffered and flushed into the fresh file — see SPEC-002/SPEC-005 in
-`specs/`. Two residual loss windows remain: the in-memory buffer is capped,
-and a hard crash *during* a prune drops that buffer. For large prunes, stop
-the proxy first for zero-loss guarantees:
+Прокси принимает только `--help` и `--version`; вся настройка — через env и дашборд.
 
 ```bash
-pkill -f pxpipe-proxy   # or your process manager
-# now safe to prune via the dashboard, then restart
+node dist/node.js --help
+node dist/node.js --version
 ```
 
-### Process management
+### `export` — рендер дерева в PNG
 
-`pxpipe-proxy` traps `SIGINT`/`SIGTERM`, flushes the event log and closes idle
-keep-alive sockets; a second signal exits immediately. Set `PXPIPE_LOG_LEVEL`
-to `debug` for per-request traces, `error` to silence everything else.
-
-## Benchmarks (reproducible)
-
-Measured with novel random-number problems the model cannot have memorized:
-
-| test | N | text | pxpipe (image) | tokens |
-|---|---:|---:|---:|---|
-| novel arithmetic, `claude-fable-5` | 100 | 100% | **100%** | **−38%** |
-| novel arithmetic, `claude-opus-4-8` | 100 | 100% | 93% | −38% |
-| gist recall A/B (decisions, values, paths, names, negations; with distractors; 15k-45k char sessions), Fable 5 | 98/arm | 98/98 | **98/98** | - |
-| state tracking (value mutated 3x, final/first/count), Fable 5 | 18/arm | 18/18 | **18/18** | - |
-| confabulation on never-stated facts (lower is better), Fable 5 | 16/arm | 0/16 | **0/16** | - |
-| verbatim 12-char hex recall, dense render, Opus | 15 | 15/15 | **0/15** | - |
-| verbatim 12-char hex recall, dense render, Fable 5 | 15 | - | **13/15** | - |
-
-SWE-bench run totals, receipts, and caveats:
-[`eval/swe-bench/`](eval/swe-bench/) ·
-[`eval/swe-bench-pro/`](eval/swe-bench-pro/) ·
-[`eval/needle-haystack/`](eval/needle-haystack/) ·
-[`eval/gist-recall/`](eval/gist-recall/) · analysis in
-[`FINDINGS.md`](FINDINGS.md). (GSM8K scored 96% imaged, but it's in training
-data — memorized answers survive misreads — so we lead with the novel-number
-evals.)
-
-## How it works
-
-```
-tool_result string ──► wrap at 1928px-wide columns ──► pack ~92,000 chars/page ──► PNG[]
-```
-
-The proxy intercepts `/v1/messages`, rewrites eligible bulk into image
-blocks, splices them back cache-friendly (static prefix preserved, prompt
-caching keeps working), and forwards. A 1928×1928 image costs ≈4,761 vision
-tokens and holds ≈92,000 chars, so text wins only above ~19 chars/token —
-Claude Code traffic runs ~1.91 (N=391). A per-request estimator decides;
-sparse prose stays text. Events log to `~/.pxpipe/events.jsonl`.
-
-## Library use (no proxy)
-
-```ts
-import { renderTextToImages, transformAnthropicMessages } from "pxpipe-proxy";
-
-const { pages } = await renderTextToImages(toolResultText);     // pages[i].png: Uint8Array
-const { body, applied, info } = await transformAnthropicMessages({
-  body: requestBytes,
-  model: "claude-fable-5",
-});
-```
-
-`options.keepSharp(block)` pins blocks as text; `options.emitRecoverable`
-returns the originals of imaged blocks. Pure-JS runtime (Node and
-edge/Workers); `@napi-rs/canvas` is build-time only. Full API:
-`src/core/index.ts`.
-
-## Export CLI
-
-`pxpipe export` walks a directory tree, renders the text to PNG pages, and
-writes `page-*.png`, `factsheet.txt`, `manifest.json`, `prompt.txt`. By
-default it never descends into `node_modules`, `.git`, `dist`, `build`,
-`__pycache__`, `.cache`, `.next`, `.nuxt`, `.turbo`. For mono-repos with
-language-specific junk, extend the skip list without editing source:
+Обходит директорию, рендерит текст в страницы PNG и пишет `page-*.png`, `factsheet.txt`, `manifest.json`, `prompt.txt`.
 
 ```bash
-PXPIPE_SKIP_DIRS=".venv,target,vendor,.terraform,.gradle" pxpipe export .
+node dist/node.js export .
+node dist/node.js export --include "src/**/*.ts" --exclude "**/*.test.ts"
+node dist/node.js export --git
+node dist/node.js export --diff HEAD~1 --out ./out --json
 ```
 
-## Development
+Флаги: `--include <glob>`, `--exclude <glob>`, `--git`, `--diff <ref>`, `--stdin`, `--out <dir>`, `--model <id>`, `--json`, `--open` (reveal в Finder на macOS), `-h/--help`. По умолчанию не заходит в `node_modules`, `.git`, `dist`, `build`, `__pycache__`, `.cache`, `.next`, `.nuxt`, `.turbo`; список расширяется `PXPIPE_SKIP_DIRS`.
+
+## Данные на диске
+
+- Журнал событий: `~/.pxpipe/events.jsonl` (переопределяется `PXPIPE_LOG`). Ротация при 100 MB — текущий файл переименовывается в `<path>.1` (перезаписывается). Хранится одна генерация.
+- Тела 4xx-запросов: `~/.pxpipe/4xx-bodies/<iso-время>-<sha8>.json.gz`. Путь пишется в строку события как `req_body_sample_path`. Удаляются только при `prune` вместе с сессией, ротацией **не** чистятся.
+
+### Чистка сессий
+
+Дашборд умеет чистить старые сессии из журнала и удалять их сайдкары. Чистка перезаписывает журнал через rename, а живой трекер на это время ставится на паузу. Для больших чисток надёжнее сначала остановить прокси:
 
 ```bash
-pnpm install && pnpm test
-pnpm run build                # regenerates dist/
+# остановите прокси, потом почистите через дашборд, потом запустите заново
 ```
 
-## FAQ
+## Честные ограничения
 
-**Is the headline end-to-end, or only on the requests you touched?**
-End-to-end, the whole bill. Most compression tools report savings only on
-the input slice they touched, which flatters the number. The end-to-end
-denominator is *every* production request: the small ones pxpipe correctly
-left untouched, all cache writes and reads, and all output tokens (which the
-proxy never compresses). On a 13,709-request snapshot that was 59% ($100 →
-~$41); a later 8,904-compressed-request trace measured ~70%. Compressed-only
-runs higher (~72–74%) and is quoted separately, never as the headline. The
-exact figure is workload-dependent — reproduce it on your own log.
+- **Сжатие с потерями.** Точные строки (хеши, ID, секреты) в изображённом контенте не гарантированы байт-в-байт. Последние ходы и ответ модели всегда остаются текстом.
+- **Зависит от нагрузки.** Выигрыш на плотном по токенам контенте; на разреженной прозе может быть невыгодно, поэтому сжатие идёт через порог прибыльности.
+- **PNG добавляет задержку** на больших запросах перед отправкой.
+- **ASCII/Latin-1** протестированы хорошо; CJK работает, но консервативно.
+- Дашборд **без аутентификации** — привязывайте только к loopback (по умолчанию так и есть).
 
-**How is the math measured?**
-Both sides of the same request, at the same moment. For every `/v1/messages`
-POST the proxy fires a free `count_tokens` probe on the original uncompressed
-body (the counterfactual) in parallel with the real forward, and reads
-Anthropic's actually-billed usage block off the response. Both land in the
-same row of `~/.pxpipe/events.jsonl`, so there is no turn-count or
-run-to-run confound. Dollar conversion uses Fable 5 list ratios: input ×1.0,
-cache write ×1.25, cache read ×0.1, output ×5. Cache pricing is applied
-identically to both sides, so the caching discount cancels and cannot be
-double-counted as "savings". Re-derive it yourself from the events log: the
-formula and field names are documented in `src/core/baseline.ts`.
+## Разработка
 
-**What does it actually compress?**
-Three kinds of *input* blocks, each behind a profitability gate:
+```bash
+npm install
+npm test          # vitest
+npm run typecheck # tsc --noEmit
+npm run build     # пересобрать dist/
+npm run dev:node  # tsx watch src/node.ts
+```
 
-1. large `tool_result` bodies (file reads, command output, logs) above
-   ~6k chars of token-dense content
-2. older collapsed history: turns behind the live tail get re-rendered as
-   image pages, recent turns always stay text
-3. the static system prompt + tool docs slab
-
-Everything else passes through byte-identical: your messages, recent turns,
-the model's output (it is the response, the proxy never touches it), sparse
-prose, and anything too small to win. Models outside the allowlist pass
-through entirely — the default scope is Fable 5 and GPT 5.6 only. Opus 4.8
-and GPT 5.5 read imaged content measurably worse (FINDINGS.md 2026-06-16),
-so they are deliberately opt-in via the dashboard or `PXPIPE_MODELS`, never
-silently imaged.
-
-**Has it ever failed for real, outside the benchmarks?**
-Yes, once in weeks of daily use: the model recalled a person's name from
-imaged chat history and got it confidently wrong. No error, just a
-plausible wrong name. That is the documented failure mode: exact strings
-in imaged content are not byte-safe. Coding sessions tolerate this because
-the agent re-reads files before editing; pure chat recall has no such check.
-This failure mode is measured, not anecdotal:
-[the legibility audit](docs/LEGIBILITY-AUDIT-2026-07-01.md) quantifies
-exact-string recall off rendered pages (blind reads top out at 63% on dense
-identifiers, with every miss predicted by a glyph-confusability matrix) and
-documents the shipped mitigations — page geometry clamped to the API's
-resample cap so billed pixels actually reach the vision encoder, and exact
-identifiers (SHAs, numbers) riding alongside as text.
-
-**Why are misses silent confabulations instead of read errors?**
-Because model vision is not OCR: the image becomes patch embeddings, never
-discrete characters, so there is no per-glyph confidence to fail loudly
-on. When pixels underdetermine a glyph, the language prior fills the gap
-with something plausible. Mechanism and receipts:
-[docs/NOT-OCR.md](docs/NOT-OCR.md).
-
-**Didn't DeepSeek-OCR show this doesn't hold up in practice?**
-No: it proved the channel works, using an encoder/decoder pair trained for
-the job. The skepticism dates from October 2025, when no stock production
-model could read dense renders; that changed with Fable 5 (0/15 verbatim
-hex on Opus 4.8 vs 13/15 on Fable 5, same pages). Timeline and per-model
-numbers: [docs/NOT-OCR.md](docs/NOT-OCR.md).
-
-**Why does the README read like an AI wrote it?**
-Because one did. Most of this repo's commits — the code and the docs — were
-authored by Opus/Fable agent sessions running behind pxpipe itself, reading
-their own collapsed history as image pages while they worked.
-
-## Limitations
-
-- Lossy (above); verbatim recall from images is unreliable.
-- PNG encoding adds latency to large requests before they leave.
-- ASCII/Latin-1 well tested; CJK works but conservatively.
-
-## Roadmap
-
-Rendering research is parked as of 2026-07-05: verbatim misreads are
-capacity-bound, not trick-bound, so no font/color/layout change fixes
-exact-string recall at profitable density. The why is in
-[docs/NOT-OCR.md](docs/NOT-OCR.md); the dated analysis and the three
-documented follow-up threads (glyph-style A/B with banked pages, runtime
-canary + re-fetch, surrogate-reader pre-flight) are in
-[FINDINGS.md](FINDINGS.md), 2026-07-05 entry. Watch condition: re-run the
-resolution sweep per model release; readable density moved ~4x in glyph
-area from Opus 4.8 to Fable 5, and a model that reads production cells
-near 100% means savings rise for free.
-
-Still open, unchanged: whether imaged bulk stretches effective context (~2x
-the real content in the same 1M window), and whether a smaller active
-context improves long-task accuracy. Hypotheses, not claims — they ship as
-numbers with an n or they get cut.
-
-## License
+## Лицензия
 
 MIT.
