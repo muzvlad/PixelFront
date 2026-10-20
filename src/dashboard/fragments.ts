@@ -869,20 +869,25 @@ const CSS = `
     padding: 16px 18px; box-shadow: var(--shadow); min-width: 0; }
   .card-head { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
     color: var(--muted); margin: 0 0 12px; }
-  .card-head.spaced { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .card-head.spaced { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
 
   /* x-ray */
   .xray { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; align-items: start; }
   @media (max-width: 1000px) { .xray { grid-template-columns: 1fr; } }
+  /* Правая карточка — составная (разбивка + просмотр + сжатие + сессии + история):
+     слегка ужимаем вертикальные отступы, чтобы её низ визуально совпал с низом
+     левой (таблица «Последние запросы»), не сжимая контент. */
+  .xray .card-head { margin-bottom: 8px; }
+  .xray > .card > div { margin: 0; }
 
   /* context map */
   .ctxmap { font-size: 13px; }
   .empty-note { color: var(--muted); font-size: 12.5px; padding: 14px; background: var(--surface-2);
     border: 1px dashed var(--border-strong); border-radius: 10px; }
-  .ctx-headline { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+  .ctx-headline { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
   .ctx-title { display: inline-block; font-weight: 700; color: var(--ink); margin-right: 6px; }
   .ctx-big { font-size: 22px; font-weight: 800; color: var(--flame); font-variant-numeric: tabular-nums; }
-  .legend { display: flex; gap: 8px; margin-bottom: 10px; }
+  .legend { display: flex; gap: 8px; margin-bottom: 8px; }
   .tag { font-size: 11px; font-weight: 600; padding: 3px 9px 3px 22px; border-radius: 999px; position: relative; }
   .tag::before { content: ''; position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
     width: 8px; height: 8px; border-radius: 2px; }
@@ -904,8 +909,8 @@ const CSS = `
   .ctx-lbl { color: var(--ink-2); } .ctx-val { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .muted-row { color: var(--muted); font-style: italic; }
   .split-note { font-size: 10.5px; color: var(--muted); margin-top: 7px; }
-  .pages-title { font-size: 11px; color: var(--ink-2); margin: 12px 0 6px; }
-  .pages { display: flex; flex-wrap: wrap; gap: 6px; max-height: 320px; overflow: auto;
+  .pages-title { font-size: 11px; color: var(--ink-2); margin: 8px 0 6px; }
+  .pages { display: flex; flex-wrap: wrap; gap: 6px; max-height: 290px; overflow: auto;
     background: var(--surface-2); padding: 6px; border: 1px solid var(--border); border-radius: 8px; }
   .page { height: 130px; width: auto; max-width: 230px; object-fit: contain; object-position: top left;
     image-rendering: pixelated; background: #fff; border: 1px solid var(--border-strong); border-radius: 4px;
@@ -972,8 +977,8 @@ const CSS = `
     border: 1px dashed var(--border-strong); border-radius: 8px; }
 
   /* sessions bars */
-  .status { margin-bottom: 12px; color: var(--muted); font-size: 12px; }
-  .bars { display: flex; flex-direction: column; gap: 8px; }
+  .status { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+  .bars { display: flex; flex-direction: column; gap: 6px; }
   .bar-row { display: flex; align-items: center; gap: 12px; font-size: 12px; }
   .bar-label { width: 150px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: var(--ink); font-family: var(--mono); font-size: 11px; }
@@ -984,7 +989,7 @@ const CSS = `
   .bar-val { width: 78px; flex: none; text-align: right; font-variant-numeric: tabular-nums;
     color: var(--flame-ink); font-weight: 600; }
   .bar-val.neg { color: var(--bad); }
-  .axis { margin-top: 12px; color: var(--muted); font-size: 11px; }
+  .axis { margin-top: 8px; color: var(--muted); font-size: 11px; }
   .empty { text-align: center; color: var(--muted); padding: 22px; font-size: 12px; }
 
   /* toast tray */
