@@ -125,7 +125,7 @@ describe('stats aggregator', () => {
       );
     }
     const out = renderTextReport(s);
-    expect(out).toContain('pxpipe stats');
+    expect(out).toContain('PixelFront stats');
     expect(out).toContain('compressed');
     expect(out).toContain('cache hit rate');
     expect(out).toContain('/Users/x/code/pp');

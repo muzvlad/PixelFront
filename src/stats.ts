@@ -207,7 +207,7 @@ function fmtPct(num: number, denom: number): string {
 export function renderTextReport(s: Summary): string {
   const lines: string[] = [];
 
-  lines.push('━━━ pxpipe stats ━━━');
+  lines.push('━━━ PixelFront stats ━━━');
   lines.push('');
   lines.push(`requests:       ${fmtN(s.total)}`);
   lines.push(

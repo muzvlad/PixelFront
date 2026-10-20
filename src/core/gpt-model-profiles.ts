@@ -115,6 +115,19 @@ const BUILTIN_RULES: ProfileRule[] = [
     test: (m) => /^deepseek/.test(m),
     profile: { vision: { regime: 'tile', base: 85, perTile: 170 }, stripCols: C, maxHeightPx: H, attachment: false },
   },
+  // MiMo V2.6 (Pro/Flash/Ultraspeed) — native vision. Real cost formula from
+  // Xiaomi's own docs: image dims round to a multiple of 32 (PATCH_SIZE 16 ×
+  // SPATIAL_MERGE 2), then tokens = (h/16 × w/16) / 4 = pixels / 1024. pxpipe's
+  // patch regime counts one patch per 32×32 cell, so `multiplier: 1` reproduces
+  // pixels/1024 exactly (a 1520×1932 strip → 60×47 = 2820 tokens, matching the
+  // Xiaomi formula). Cap 8192 patches ≈ 8.4 MP, just under their 8388608-px
+  // maximum. This is a patch regime (unlike the old tile approximation for
+  // v2.5) and is far cheaper per dense page than OpenAI's 768-short-side clamp.
+  // Must stay ABOVE the generic `^mimo` rule so v2.5 keeps tile pricing untouched.
+  {
+    test: (m) => /^mimo-v2\.6/.test(m),
+    profile: { vision: { regime: 'patch', multiplier: 1, patchCap: 8192 }, stripCols: C, maxHeightPx: H, attachment: true },
+  },
   // MiMo V2.5 Pro — reasoning model, conservative tile pricing
   {
     test: (m) => /^mimo/.test(m),

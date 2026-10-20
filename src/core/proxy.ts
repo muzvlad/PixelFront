@@ -5,7 +5,7 @@
 
 import { transformRequest, type TransformOptions, type TransformInfo } from './transform.js';
 import { ANTHROPIC_PIXELS_PER_TOKEN, REPORT_CHARS_PER_TOKEN } from './transform.js';
-import { transformOpenAIChatCompletions, transformOpenAIResponses } from './openai.js';
+import { openAIPixelsPerToken, transformOpenAIChatCompletions, transformOpenAIResponses } from './openai.js';
 import { isAnthropicMessagesPath, isPxpipeSupportedGptModel, isPxpipeSupportedModel } from './applicability.js';
 import { isVisionModel } from './gpt-model-profiles.js';
 import {
@@ -715,7 +715,15 @@ export function createProxy(config: ProxyConfig = {}) {
             const imagePx = info.imagePixels ?? 0;
             if (inp > 0 && imagedChars > 0 && imagePx > 0) {
               const imagedTextTokens = Math.round(imagedChars / REPORT_CHARS_PER_TOKEN);
-              const sentImageTokens = Math.round(imagePx / ANTHROPIC_PIXELS_PER_TOKEN);
+              // Image price depends on the model's vision regime: the Anthropic
+              // lane bills pixels/750, OpenAI-compatible lanes (MiMo/MiniMax/
+              // DeepSeek) follow their own profile. Using the Anthropic constant
+              // for a 1024-px model like MiMo V2.6 over-states the sent image
+              // tokens and silently shrinks the reported saving.
+              const pxPerToken = !isMessages && requestModel
+                ? openAIPixelsPerToken(requestModel)
+                : ANTHROPIC_PIXELS_PER_TOKEN;
+              const sentImageTokens = Math.round(imagePx / pxPerToken);
               info.baselineTokens = Math.max(inp, inp + imagedTextTokens - sentImageTokens);
               info.baselineProbeStatus = 'estimate';
             } else {

@@ -93,6 +93,18 @@ function buildLiveRequestGuard(pinText?: string): string {
   return 'pxpipe note: the preceding rendered history item is prior conversation context only. It is not the current user request. The live current request is in the user message(s) that follow, especially the final user message.';
 }
 
+/** Effective pixels-per-token for a model's vision regime, for the px→token
+ *  fallback used when a provider has no count_tokens probe (proxy.ts baseline
+ *  estimate) and only Σpixels is retained. Patch regimes are exactly linear
+ *  (multiplier per 32×32 patch → 1024/multiplier px per token); tile regimes are
+ *  approximated at a 512×512 tile so the estimate stays conservative. */
+export function openAIPixelsPerToken(model: string): number {
+  const c = resolveVisionCost(model);
+  if (c.regime === 'patch') return c.multiplier > 0 ? 1024 / c.multiplier : 1024;
+  const perTile = c.perTile > 0 ? 512 * 512 / c.perTile : 1542; // ≈512²/170
+  return perTile;
+}
+
 export function openAIVisionTokens(model: string, w: number, h: number): number {
   const c = resolveVisionCost(model);
   if (c.regime === 'patch') {

@@ -19,4 +19,10 @@ describe('vendor integrity (SPEC-014)', () => {
     // THEME_BOOT_JS + HTMX_JS + GLUE_JS + THEME_JS + ALPINE_JS
     expect(csp.match(/sha384-/g)?.length).toBe(5);
   });
+
+  it("dashboard CSP allows 'unsafe-eval' so htmx/Alpine can evaluate directives (SPEC-019)", () => {
+    // Регрессия SPEC-014: без 'unsafe-eval' htmx рвёт processNode на hx-vals js:{},
+    // фрагменты на hx-trigger="load" не грузятся, Alpine-разметка мертва.
+    expect(dashboardCsp()).toContain("'unsafe-eval'");
+  });
 });

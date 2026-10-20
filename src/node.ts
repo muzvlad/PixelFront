@@ -35,7 +35,7 @@ import {
 import { setActiveTracker } from './tracker-coordinator.js';
 import { validateConfig, buildWalkSkipDirs } from './config.js';
 import { FileTracker } from './core/trackers/file-tracker.js';
-import { debug, info, warn, error } from './log.js';
+import { debug, info, warn, error, status, dimItalic, bright } from './log.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
  *  transform.ts; startup knobs cover deployment plus emergency GPT scope
@@ -94,7 +94,7 @@ function parseCli(argv: string[]): RuntimeConfig {
     }
     if (a.startsWith('-')) {
       error(`unknown option: ${a}`);
-      error(`this build accepts no flags; run \`pxpipe --help\` for env vars`);
+      error(`this build accepts no flags; run \`pixelfront --help\` for env vars`);
       process.exit(2);
     }
   }
@@ -194,11 +194,11 @@ function parseProvider(v: string | undefined): 'cloudflare-ai-gateway' | undefin
 }
 
 function printHelp(): void {
-  console.log(`pxpipe — прокси для экономии токенов
+  console.log(`PixelFront — прокси для экономии токенов
 
 Использование:
-  pxpipe                запустить прокси (без флагов)
-  pxpipe export [...]   отрисовать файлы/diff в PNG страницы + отчёт о стоимости
+  pixelfront                запустить прокси (без флагов)
+  pixelfront export [...]   отрисовать файлы/diff в PNG страницы + отчёт о стоимости
 
 Прокси сжимает инструменты, схемы, напоминания, результаты инструментов
 и историю диалога; записывает события на диск; измеряет экономию через
@@ -731,10 +731,10 @@ async function maybeWriteBodySidecar(
 // ---- pxpipe export -------------------------------------------------------
 
 function printExportHelp(): void {
-  console.log(`pxpipe export — render code/text to PNG pages for compressed LLM context
+  console.log(`PixelFront export — render code/text to PNG pages for compressed LLM context
 
 Usage:
-  pxpipe export [target ...]    default target is "." (current directory)
+  pixelfront export [target ...]    default target is "." (current directory)
 
 Targets:
   Files or directories to include. Multiple targets are joined with a header
@@ -754,7 +754,7 @@ Options:
   -h, --help         show this help
 
 Output:
-  <out>/pxpipe-export-<hash>/
+  <out>/pixelfront-export-<hash>/
     page-001.png ...  rendered image pages
     factsheet.txt     verbatim precision tokens (paths, SHAs, ids, numbers)
     manifest.json     metadata + token report
@@ -772,12 +772,12 @@ Environment variables:
                      ".venv,target,vendor" for Python/Rust/Go projects.
 
 Examples:
-  pxpipe export .                              # whole directory
-  pxpipe export --include "*.ts" src/          # TypeScript files only
-  pxpipe export --git                          # uncommitted changes
-  pxpipe export --diff HEAD~3                  # last 3 commits
-  pxpipe export --open src/                    # render src/, then reveal the folder
-  cat big-file.txt | pxpipe export --stdin
+  pixelfront export .                              # whole directory
+  pixelfront export --include "*.ts" src/          # TypeScript files only
+  pixelfront export --git                          # uncommitted changes
+  pixelfront export --diff HEAD~3                  # last 3 commits
+  pixelfront export --open src/                    # render src/, then reveal the folder
+  cat big-file.txt | pixelfront export --stdin
 `);
 }
 
@@ -978,7 +978,7 @@ async function runExport(argv: string[]): Promise<void> {
   }
   if (parseResult.kind === 'error') {
     error(`export: ${parseResult.message}`);
-    error('export: run `pxpipe export --help` for usage');
+    error('export: run `pixelfront export --help` for usage');
     process.exit(2);
   }
 
@@ -1029,7 +1029,7 @@ async function main(): Promise<void> {
   // A/B harness passthrough switch (see the `transform` callback below).
   const forcePassthrough = /^(1|true|yes|on)$/i.test(process.env.PXPIPE_DISABLE ?? '');
   if (forcePassthrough) {
-    info('PXPIPE_DISABLE set — passthrough mode (compress=false), still logging usage + baselines');
+    status('restart', 'PXPIPE_DISABLE задан — режим пропуска (сжатие выключено), но расчёт базлайна и логирование сохраняются');
   }
   // Debug aid: when PXPIPE_DUMP_DIR is set, persist every rendered PNG this
   // process emits, so you can eyeball exactly what the model received (OCR /
@@ -1041,9 +1041,9 @@ async function main(): Promise<void> {
   if (imageDumpDir) {
     try {
       fs.mkdirSync(imageDumpDir, { recursive: true });
-      info(`PXPIPE_DUMP_DIR set — dumping rendered PNGs to ${imageDumpDir}`);
+      status('process', `PXPIPE_DUMP_DIR задан — сохраняю отрисованные PNG в ${imageDumpDir}`);
     } catch (err) {
-      warn(`PXPIPE_DUMP_DIR unusable (${(err as Error).message}) — image dumping disabled`);
+      warn(`PXPIPE_DUMP_DIR недоступен (${(err as Error).message}) — сохранение изображений выключено`);
       imageDumpDir = undefined;
     }
   }
@@ -1083,7 +1083,7 @@ async function main(): Promise<void> {
         await tracker.flush?.();
         bytesSinceLastFlush = 0;
       } catch (err) {
-        warn(`tracker flush failed: ${(err as Error).message}`);
+        warn(`не удалось сбросить трекер на диск: ${(err as Error).message}`);
       }
     }
   }, FLUSH_INTERVAL_MS);
@@ -1242,19 +1242,28 @@ async function main(): Promise<void> {
   const isLoopbackHost =
     opts.host === '127.0.0.1' || opts.host === 'localhost' || opts.host === '::1';
   server.listen(opts.port, opts.host, () => {
-    info(`listening on http://${displayHost}:${opts.port}`);
+    // ponytail: заголовок окна ставим из node (bat+chcp не надёжны с кириллицей).
+    process.stdout.write('\x1b]0;PixelFront - Запущен\x07');
+    status('start', 'PixelFront — прокси экономии токенов');
+    status('notice', `порт: ${opts.port}`);
+    status('notice', 'поддерживаемые модели:');
+    status('notice', '  - DeepSeek V4 Pro / Flash');
+    status('notice', '  - MiMo V2.5 / V2.5 Pro / V2.6');
+    status('notice', `  - Claude ${dimItalic('(если задан ключ)')}`);
+    status('notice', `  - GPT ${dimItalic('(если задан ключ)')}`);
+    status('notice', `дашборд: ${bright(`http://127.0.0.1:${opts.port}/`)} ⧉`);
+    status('start', `слушаю на http://${displayHost}:${opts.port}`);
     if (!isLoopbackHost) {
       warn(
-        `bound to ${opts.host} — the unauthenticated dashboard ` +
-          `(captured request context + kill switch) is reachable off-host. ` +
-          `Unset HOST to restrict to loopback.`,
+        `прокси привязан к ${opts.host} — дашборд без аутентификации ` +
+          `(захваченный контекст запросов + kill switch) доступен извне сети. ` +
+          `Уберите HOST, чтобы ограничить loopback.`,
       );
     }
     const routes = resolveUpstreams(config);
-    info(`anthropic upstream → ${routes.anthropic}`);
-    info(`openai upstream → ${routes.openai}`);
-    info(`tracking events → ${opts.eventsFile}`);
-    info(`dashboard → http://127.0.0.1:${opts.port}/`);
+    status('process', `anthropic upstream → ${routes.anthropic}`);
+    status('process', `openai upstream → ${routes.openai}`);
+    status('process', `события трекинга → ${opts.eventsFile}`);
   });
 
   // server.close() only stops accepting new connections and waits for open
@@ -1266,11 +1275,11 @@ async function main(): Promise<void> {
   let shuttingDown = false;
   const shutdown = async (sig: string) => {
     if (shuttingDown) {
-      info(`${sig} again — forcing exit`);
+      status('restart', `${sig} повторно — принудительный выход`);
       process.exit(130);
     }
     shuttingDown = true;
-    info(`${sig} — shutting down`);
+    status('restart', `${sig} — останавливаюсь`);
     // Flush+close the tracker so we don't drop the last few events on exit.
     if (tracker instanceof FileTracker) await tracker.close();
     setActiveTracker(null);
@@ -1289,7 +1298,19 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
+// Global safety net: a stray async error (timer, socket, fire-and-forget
+// promise) must not kill the terminal mid-run. Node's default for both events
+// is to print the stack and exit — which closes the launcher window. We log
+// and keep serving; per-request errors are already contained in the server
+// handler above, so reaching here means a background task.
+process.on('unhandledRejection', (reason) => {
+  warn(`необработанный rejection (процесс жив): ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+});
+process.on('uncaughtException', (err) => {
+  error(`необработанное исключение (процесс жив): ${err.stack ?? err.message}`);
+});
+
 main().catch((err) => {
-  error('fatal:', err);
+  error('фатальная ошибка:', err);
   process.exit(1);
 });
