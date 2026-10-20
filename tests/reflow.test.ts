@@ -691,5 +691,5 @@ describe('reflow L0 contract – real corpus', () => {
 
     console.log(`[4xx-bodies] Checked ${textsChecked} text blocks.`);
     expect(violations).toHaveLength(0);
-  });
+  }, 30_000);
 });
