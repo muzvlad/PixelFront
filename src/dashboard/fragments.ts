@@ -2,6 +2,7 @@
 // Presentation only; server code (src/dashboard.ts, src/node.ts) needs no edits.
 
 import { HTMX_JS, ALPINE_JS } from './vendor.js';
+import { LORA_LATIN_WOFF2_B64, LORA_CYRILLIC_WOFF2_B64 } from './font-data.js';
 import { createHash } from 'node:crypto';
 import { CACHE_CREATE_RATE, CACHE_READ_RATE } from '../core/baseline.js';
 import { isVisionModel } from '../core/index.js';
@@ -718,6 +719,22 @@ const FAVICON =
   "%3Ccircle%20cx='16'%20cy='16'%20r='10'%20fill='url(%23f)'/%3E%3C/svg%3E";
 
 const CSS = `
+  /* Lora (self-host, OFL) — как в TheAgeOfReason. Сабсеты latin + cyrillic,
+     встроены base64: дашборд остаётся self-contained, CSP не трогаем. */
+  @font-face {
+    font-family: 'Lora';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url(data:font/woff2;base64,${LORA_LATIN_WOFF2_B64}) format('woff2');
+  }
+  @font-face {
+    font-family: 'Lora';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url(data:font/woff2;base64,${LORA_CYRILLIC_WOFF2_B64}) format('woff2');
+  }
   :root {
     --bg: #faf6f2; --surface: #ffffff; --surface-2: #fbf4ee;
     --border: #efe5db; --border-strong: #e4d6c8;
@@ -761,7 +778,7 @@ const CSS = `
   :root[data-theme="dark"] .toast { box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   * { box-sizing: border-box; }
   body { margin: 0; padding: var(--page-x) var(--page-x) clamp(40px, 5vw, 64px); background: var(--bg); color: var(--ink-2);
-    font: var(--fs-body)/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font: var(--fs-body)/1.5 'Lora', Georgia, 'Times New Roman', serif;
     -webkit-font-smoothing: antialiased; }
   b, strong { color: var(--ink); }
   .good { color: var(--good); } .bad { color: var(--bad); }
