@@ -1289,6 +1289,18 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
+// Global safety net: a stray async error (timer, socket, fire-and-forget
+// promise) must not kill the terminal mid-run. Node's default for both events
+// is to print the stack and exit — which closes the launcher window. We log
+// and keep serving; per-request errors are already contained in the server
+// handler above, so reaching here means a background task.
+process.on('unhandledRejection', (reason) => {
+  warn(`unhandled rejection (kept alive): ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+});
+process.on('uncaughtException', (err) => {
+  error(`uncaught exception (kept alive): ${err.stack ?? err.message}`);
+});
+
 main().catch((err) => {
   error('fatal:', err);
   process.exit(1);

@@ -62,9 +62,10 @@ timeout /t 1 /nobreak >nul
 
 :: Open the dashboard in the default browser, then start the proxy.
 start "" http://127.0.0.1:%PORT%/
+
 node dist/node.js
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Proxy exited with error.
-    pause
-)
+set EXITCODE=%errorlevel%
+echo.
+echo [*] Proxy stopped (exit code %EXITCODE%).
+echo     Press any key to close this window.
+pause >nul

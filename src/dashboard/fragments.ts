@@ -860,6 +860,9 @@ const CSS = `
 
   /* sections */
   .section { margin-top: 26px; }
+  .sections-two { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+  .sections-two .section { margin-top: 0; }
+  @media (max-width: 900px) { .sections-two { grid-template-columns: 1fr; } }
   .section-head { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 12px;
     display: flex; align-items: baseline; gap: 10px; }
   .section-sub { font-size: 12px; font-weight: 400; color: var(--muted); }
@@ -1150,6 +1153,7 @@ export function renderPage(port: number): string {
   </div>
 </section>
 
+<div class="sections-two">
 <section class="section">
   <h2 class="section-head">Лучшие сессии <span class="section-sub">по сохранённым токенам</span></h2>
   <div class="card">
@@ -1163,6 +1167,7 @@ export function renderPage(port: number): string {
     <div id="frag-stats" hx-get="/fragments/stats" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
   </div>
 </section>
+</div>
 
 <section class="section">
   <h2 class="section-head">Сжатие текста <span class="section-sub">ручной инструмент — вставьте текст, получите PNG</span></h2>
