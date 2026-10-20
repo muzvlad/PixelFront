@@ -1054,15 +1054,29 @@ const GLUE_JS = `
       if (d) d.setAttribute('open', '');
     });
   });
+  // Соединение: одна персистентная плашка на весь период обрыва, без дублей.
+  window.ppOffline = false;
+  function ppConnectionLost() {
+    if (window.ppOffline) return;
+    window.ppOffline = true;
+    window.dispatchEvent(new CustomEvent('pp-toast', {
+      detail: { text: 'Нет соединения с прокси — ждём восстановления…', sticky: true, id: 'offline' }
+    }));
+  }
+  function ppConnectionOk() {
+    if (!window.ppOffline) return;
+    window.ppOffline = false;
+    window.dispatchEvent(new CustomEvent('pp-dismiss', { detail: { id: 'offline' } }));
+  }
   document.body.addEventListener('htmx:responseError', function (ev) {
+    if (ev.detail.xhr && ev.detail.xhr.status === 0) return ppConnectionLost();
     window.dispatchEvent(new CustomEvent('pp-toast', {
       detail: { text: ev.detail.xhr.status + ' ' + ev.detail.requestConfig.path }
     }));
   });
-  document.body.addEventListener('htmx:sendError', function (ev) {
-    window.dispatchEvent(new CustomEvent('pp-toast', {
-      detail: { text: 'proxy unreachable: ' + ev.detail.requestConfig.path }
-    }));
+  document.body.addEventListener('htmx:sendError', function () { ppConnectionLost(); });
+  document.body.addEventListener('htmx:afterRequest', function (ev) {
+    if (ev.detail.successful) ppConnectionOk();
   });
   // Delegated handlers (CSP-safe — no inline onclick/onerror attributes, SPEC-014).
   document.addEventListener('click', function (ev) {
@@ -1193,7 +1207,8 @@ export function renderPage(port: number): string {
 </section>
 
 <div class="tray" x-data="{ toasts: [], next: 1 }"
-     @pp-toast.window="const id = next++; toasts.push({ id, text: $event.detail.text }); setTimeout(() => toasts = toasts.filter(t => t.id !== id), 5000)">
+     @pp-toast.window="const d = $event.detail; if (d.id && toasts.some(t => t.id === d.id)) return; const id = d.id || next++; toasts.push({ id, text: d.text, sticky: d.sticky }); if (!d.sticky) setTimeout(() => toasts = toasts.filter(t => t.id !== id), 5000)"
+     @pp-dismiss.window="const d = $event.detail; if (d && d.id) toasts = toasts.filter(t => t.id !== d.id)">
   <template x-for="t in toasts" :key="t.id">
     <div class="toast"><span x-text="t.text"></span><button type="button" @click="toasts = toasts.filter(x => x.id !== t.id)" aria-label="dismiss">&times;</button></div>
   </template>
