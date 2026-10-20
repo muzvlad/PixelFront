@@ -58,10 +58,10 @@ export function renderToggleFragment(enabled: boolean): string {
   // NOTE: "PASSTHROUGH MODE", "Disable compression", "Enable compression" are asserted by tests.
   const banner = enabled
     ? ''
-    : `<div class="banner"><strong>РЕЖИМ ПРОПУСКА</strong> — сжатие выключено. Все запросы уходят в Claude без изменений: без изображений, без экономии. Используйте для A/B тестирования или при проблемах с API.</div>`;
+    : `<div class="banner"><strong>РЕЖИМ ПРОПУСКА</strong> — сжатие выключено. Все запросы уходят в модель как есть: без картинок, без магии, без экономии. Включите для A/B тестов или если API вдруг заупрямился.</div>`;
   // Button POSTs the OPPOSITE of current state; 2s poll keeps it fresh.
   const confirm = enabled
-    ? ` hx-confirm="Выключить сжатие?\n\nЗапросы будут передаваться в Claude без изменений. Перезапуск прокси включит сжатие обратно."`
+    ? ` hx-confirm="Выключить сжатие?\n\nЗапросы будут уходить в модель как есть. Перезапуск прокси включит сжатие обратно."`
     : '';
   return (
     banner +
@@ -1091,7 +1091,10 @@ export function dashboardCsp(): string {
   const hashes = [THEME_BOOT_JS, HTMX_JS, GLUE_JS, THEME_JS, ALPINE_JS].map((s) =>
     `'sha384-${createHash('sha384').update(s, 'utf8').digest('base64')}'`,
   );
-  return `script-src 'self' ${hashes.join(' ')}`;
+  // 'unsafe-eval' нужен htmx (hx-vals 'js:{...}', hx-trigger-выражения) и Alpine
+  // (x-data/@click/x-text): оба вычисляют строки через new Function. Без него
+  // фрагменты на load не грузятся, а Alpine-разметка остаётся мёртвой.
+  return `script-src 'self' 'unsafe-eval' ${hashes.join(' ')}`;
 }
 
 export function renderPage(port: number): string {
