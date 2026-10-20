@@ -200,8 +200,8 @@ export function renderSessionSummaryFragment(s: StatsPayload): string {
     `Ваши последние сообщения и ответ Claude никогда не сжимаются.` +
     `</div>` +
     `<div class="hero-meta">` +
-    `С учётом кеша — чтения из кеша считаются по реальной ставке ~0.1× · ` +
-    `выход не затронут (${kFmt(rawOutput)}) · без предположений о цене` +
+    `В токен-эквиваленте: cache_read ×0.1, cache_create ×1.25 (ставки Anthropic) · ` +
+    `выход не сжат (${kFmt(rawOutput)}) · в токенах, без абсолютных цен` +
     `</div>` +
     `</div>`
   );
@@ -800,12 +800,13 @@ const CSS = `
   /* session hero */
   #frag-session { display: block; margin-bottom: 16px; }
   .hero { background: linear-gradient(135deg, var(--flame-tint), var(--surface) 60%); border: 1px solid var(--border);
-    border-left: 4px solid var(--flame); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow); }
+    border-left: 4px solid var(--flame); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow);
+    max-width: 560px; }
   .hero-neg { border-left-color: var(--bad); }
   .hero-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--muted); margin-bottom: 8px; }
   .hero-headline { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; line-height: 1.1; }
-  .hero-num { font-size: 56px; font-weight: 800; line-height: 1; margin-right: 8px;
+  .hero-num { font-size: 28px; font-weight: 800; line-height: 1.1; margin-right: 2px;
     background: linear-gradient(135deg, #ff9a4d, var(--flame) 55%, var(--flame-strong));
     -webkit-background-clip: text; background-clip: text; color: transparent;
     font-variant-numeric: tabular-nums; }
@@ -860,9 +861,6 @@ const CSS = `
 
   /* sections */
   .section { margin-top: 26px; }
-  .sections-two { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
-  .sections-two .section { margin-top: 0; }
-  @media (max-width: 900px) { .sections-two { grid-template-columns: 1fr; } }
   .section-head { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 12px;
     display: flex; align-items: baseline; gap: 10px; }
   .section-sub { font-size: 12px; font-weight: 400; color: var(--muted); }
@@ -1150,25 +1148,13 @@ export function renderPage(port: number): string {
       <div id="frag-latest" hx-get="/fragments/latest" hx-trigger="load, every 2s, pp-refresh" hx-swap="innerHTML"
            hx-vals='js:{pin: window.pp.pin == null ? "" : window.pp.pin, source: window.pp.src ? "1" : ""}'></div>
       <div id="frag-compress" hx-get="/fragments/compress" hx-trigger="load" hx-swap="innerHTML"></div>
+      <h3 class="card-head spaced">Лучшие сессии · по сохранённым токенам</h3>
+      <div id="frag-sessions" hx-get="/fragments/sessions" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
+      <h3 class="card-head spaced">Полная история · все события на диске</h3>
+      <div id="frag-stats" hx-get="/fragments/stats" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
     </div>
   </div>
 </section>
-
-<div class="sections-two">
-<section class="section">
-  <div class="card">
-    <h3 class="card-head">Лучшие сессии · по сохранённым токенам</h3>
-    <div id="frag-sessions" hx-get="/fragments/sessions" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="card">
-    <h3 class="card-head">Полная история · все события на диске</h3>
-    <div id="frag-stats" hx-get="/fragments/stats" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
-  </div>
-</section>
-</div>
 
 <div class="tray" x-data="{ toasts: [], next: 1 }"
      @pp-toast.window="const id = next++; toasts.push({ id, text: $event.detail.text }); setTimeout(() => toasts = toasts.filter(t => t.id !== id), 5000)">
