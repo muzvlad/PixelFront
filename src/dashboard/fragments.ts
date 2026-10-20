@@ -193,7 +193,7 @@ export function renderSessionSummaryFragment(s: StatsPayload): string {
 
   return (
     `<div class="hero${positive ? '' : ' hero-neg'}">` +
-    `<div class="hero-eyebrow">С момента запуска · ${numFmt(measured)} запрос${measured === 1 ? '' : measured < 5 ? 'а' : ''} сжато</div>` +
+    `<div class="hero-eyebrow">С момента запуска · Сжато запросов: ${numFmt(measured)}</div>` +
     `<div class="hero-headline"><span class="hero-num">${bigNum}</span> ${word} после кеширования</div>` +
     `<div class="hero-sub">` +
     `<strong>${kFmt(actualW)}</strong> эффективных токенов вместо <strong>${kFmt(baselineW)}</strong> ` +
