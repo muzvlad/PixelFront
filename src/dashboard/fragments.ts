@@ -98,6 +98,7 @@ const COMPAT_MODEL_CATALOG: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'deepseek-v3', label: 'DeepSeek V3' },
   { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
   { id: 'mimo-v2.5', label: 'MiMo V2.5' },
+  { id: 'mimo-v2.6', label: 'MiMo V2.6' },
 ];
 
 export function renderModelsFragment(
