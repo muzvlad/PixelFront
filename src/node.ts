@@ -33,6 +33,7 @@ import {
   type DashboardRoute,
 } from './dashboard.js';
 import { setActiveTracker } from './tracker-coordinator.js';
+import { prune, type SessionsPaths } from './sessions.js';
 import { validateConfig, buildWalkSkipDirs } from './config.js';
 import { FileTracker } from './core/trackers/file-tracker.js';
 import { debug, info, warn, error, status, dimItalic, bright } from './log.js';
@@ -251,6 +252,9 @@ function printHelp(): void {
   PXPIPE_CONFIG           путь к JSON конфигу (по умолчанию ~/.config/pxpipe/config.json)
   PXPIPE_LOG              путь к JSONL журналу (по умолчанию ~/.pxpipe/events.jsonl)
   PXPIPE_LOG_LEVEL        уровень логов: debug | info | warn | error (по умолчанию info)
+  PXPIPE_PRUNE_DAYS       автоочистка при старте: удалять сессии старше N дней
+                          (по умолчанию 14; 0 — выкл). Хроника удаления —
+                          prune-history.jsonl рядом с журналом
   PXPIPE_DUMP_DIR         отладка: сохранять PNG сюда; off если не задано
 
 Использование с Claude Code:
@@ -1061,6 +1065,36 @@ async function main(): Promise<void> {
   // rows) showed 5 mode flips ever and losses at 0.8% of wins — all
   // one-time cache-create amortization — so closing the loop would not
   // change decisions. Re-run that reconciliation before wiring one in.
+
+  // Startup auto-prune (SPEC-023): drop sessions older than PXPIPE_PRUNE_DAYS
+  // (default 14; 0 disables) BEFORE the FileTracker opens the log — no live
+  // writer exists yet, so prune rewrites events.jsonl without suspend/resume
+  // and with zero risk of losing events. dashboard.replay below then seeds
+  // from the already-pruned file. Errors warn but never block startup.
+  const pruneDays = Number(process.env.PXPIPE_PRUNE_DAYS ?? 14);
+  if (Number.isFinite(pruneDays) && pruneDays > 0) {
+    const prunePaths: SessionsPaths = {
+      eventsFile: opts.eventsFile,
+      sidecarDir: path.join(path.dirname(opts.eventsFile), '4xx-bodies'),
+    };
+    try {
+      const report = await prune(prunePaths, { olderThanDays: pruneDays, force: true });
+      if (report.sessionsRemoved.length > 0 || report.sidecarsRemoved > 0 || report.orphansRemoved > 0) {
+        status(
+          'process',
+          `автоочистка (>${pruneDays} д): сессий ${report.sessionsRemoved.length}, ` +
+            `jsonl −${Math.round(report.jsonlBytesFreed / 1024)} KB, ` +
+            `sidecar-ов ${report.sidecarsRemoved + report.orphansRemoved} ` +
+            `(−${Math.round((report.sidecarBytesFreed + report.orphanBytesFreed) / 1024)} KB)`,
+        );
+      }
+    } catch (err) {
+      warn(`автоочистка не удалась (${(err as Error).message}) — продолжаем без неё`);
+    }
+  } else if (!Number.isFinite(pruneDays)) {
+    warn(`PXPIPE_PRUNE_DAYS=«${process.env.PXPIPE_PRUNE_DAYS}» не число — автоочистка отключена`);
+  }
+
   const tracker: Tracker = new FileTracker(opts.eventsFile);
   // Register with the singleton coordinator so destructive ops like
   // sessions.ts:prune can wrap their rewrites in suspend/resume and avoid

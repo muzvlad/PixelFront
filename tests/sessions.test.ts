@@ -5,6 +5,9 @@ import * as os from 'node:os';
 import {
   aggregateSessions,
   filterSessions,
+  prune,
+  pruneDigestPath,
+  selectSessionsToRemove,
   type SessionsPaths,
 } from '../src/sessions.js';
 import type { TrackEvent } from '../src/core/tracker.js';
@@ -467,5 +470,137 @@ describe('Claude Code session map', () => {
   it('readFirstUserFromClaudeSession handles missing file gracefully', async () => {
     const got = await readFirstUserFromClaudeSession('/nope/does/not/exist.jsonl');
     expect(got).toBeUndefined();
+  });
+});
+
+// ---- prune (SPEC-023) -------------------------------------------------------
+
+describe('prune', () => {
+  const NOW = new Date('2026-10-20T12:00:00Z');
+
+  function readDigest(): Record<string, unknown>[] {
+    const p = pruneDigestPath(tmp.eventsFile);
+    if (!fs.existsSync(p)) return [];
+    return fs
+      .readFileSync(p, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+  }
+
+  it('removes old sessions, their sidecars, and reports freed bytes', async () => {
+    const sidecar = writeSidecar(tmp, 'old-session.json.gz', 1024);
+    writeEvents(tmp, [
+      ev({ ts: '2026-10-01T00:00:00Z', first_user_sha8: 'old1', req_body_sample_path: sidecar }),
+      ev({ ts: '2026-10-19T00:00:00Z', first_user_sha8: 'new1' }),
+    ]);
+    const report = await prune(tmp, { olderThanDays: 7, force: true }, NOW);
+
+    expect(report.applied).toBe(true);
+    expect(report.sessionsRemoved).toEqual(['old1']);
+    expect(report.eventsRemoved).toBe(1);
+    expect(report.eventsKept).toBe(1);
+    expect(report.jsonlBytesFreed).toBeGreaterThan(0);
+    expect(report.sidecarsRemoved).toBe(1);
+    expect(report.sidecarBytesFreed).toBe(1024);
+    expect(fs.existsSync(sidecar)).toBe(false);
+
+    // The kept session survives in the rewritten file.
+    const { sessions } = await aggregateSessions(tmp);
+    expect([...sessions.keys()]).toEqual(['new1']);
+  });
+
+  it('dry-run reports but deletes nothing and writes no digest', async () => {
+    const sidecar = writeSidecar(tmp, 's.json.gz', 64);
+    writeEvents(tmp, [ev({ ts: '2026-01-01T00:00:00Z', first_user_sha8: 'old1', req_body_sample_path: sidecar })]);
+    const report = await prune(tmp, { olderThanDays: 7, force: false }, NOW);
+
+    expect(report.applied).toBe(false);
+    expect(report.sessionsRemoved).toEqual(['old1']);
+    expect(fs.existsSync(sidecar)).toBe(true);
+    expect(fs.readFileSync(tmp.eventsFile, 'utf8')).toContain('old1');
+    expect(fs.existsSync(pruneDigestPath(tmp.eventsFile))).toBe(false);
+  });
+
+  it('digest gets one line per removed session with aggregate fields', async () => {
+    writeEvents(tmp, [
+      ev({ ts: '2026-01-01T00:00:00Z', first_user_sha8: 'old1', cwd: '/proj/a' }),
+      ev({ ts: '2026-01-01T00:00:01Z', first_user_sha8: 'old1', cwd: '/proj/a', cache_read_tokens: 500 }),
+    ]);
+    await prune(tmp, { olderThanDays: 7, force: true }, NOW);
+
+    const digest = readDigest();
+    expect(digest).toHaveLength(1);
+    const row = digest[0]!;
+    expect(row.id).toBe('old1');
+    expect(row.project).toBe('/proj/a');
+    expect(row.pruned_at).toBe(NOW.toISOString());
+    expect(row.requestCount).toBe(2);
+    expect(row.cacheReadTokens).toBe(500);
+    expect(row.tokensSavedEst).toBe(0);
+    expect(row.firstSeen).toBe('2026-01-01T00:00:00Z');
+    expect(row.jsonlBytes).toBeGreaterThan(0);
+  });
+
+  it('orphan-sweep removes unreferenced old sidecars but keeps fresh and referenced ones', async () => {
+    const oldOrphan = writeSidecar(tmp, '2026-01-01T00-00-00-000Z-deadbeef.json.gz', 2048);
+    const freshOrphan = writeSidecar(tmp, '2026-10-20T10-00-00-000Z-cafe0123.json.gz', 128);
+    const referenced = writeSidecar(tmp, '2026-01-02T00-00-00-000Z-livecafe.json.gz', 256);
+    // Age the old orphan and the referenced file past the cutoff; fresh orphan stays young.
+    const old = new Date('2026-01-01T00:00:00Z');
+    fs.utimesSync(oldOrphan, old, old);
+    fs.utimesSync(referenced, old, old);
+    writeEvents(tmp, [
+      ev({ ts: '2026-10-19T00:00:00Z', first_user_sha8: 'new1', req_body_sample_path: referenced }),
+    ]);
+
+    const report = await prune(tmp, { olderThanDays: 7, force: true }, NOW);
+
+    expect(report.orphansRemoved).toBe(1);
+    expect(report.orphanBytesFreed).toBe(2048);
+    expect(fs.existsSync(oldOrphan)).toBe(false);
+    expect(fs.existsSync(freshOrphan)).toBe(true);
+    expect(fs.existsSync(referenced)).toBe(true); // owned by the kept session
+
+    const digest = readDigest();
+    const orphanRow = digest.find((r) => r.id === '<orphan>');
+    expect(orphanRow).toBeDefined();
+    expect(orphanRow!.path).toBe(oldOrphan);
+  });
+
+  it('orphan-sweep does not run without olderThanDays', async () => {
+    const orphan = writeSidecar(tmp, '2020-01-01T00-00-00-000Z-abbad00d.json.gz', 512);
+    const old = new Date('2020-01-01T00:00:00Z');
+    fs.utimesSync(orphan, old, old);
+    writeEvents(tmp, [ev({ ts: '2026-10-19T00:00:00Z', first_user_sha8: 'new1' })]);
+
+    // sessionId-only prune: no age basis, orphan must survive.
+    const report = await prune(tmp, { sessionId: 'nonexistent', force: true }, NOW);
+    expect(report.orphansRemoved).toBe(0);
+    expect(fs.existsSync(orphan)).toBe(true);
+  });
+});
+
+describe('selectSessionsToRemove', () => {
+  it('merges sessionId, sessionIds, olderThanDays and keepLast into one set', () => {
+    const now = new Date('2026-10-20T00:00:00Z');
+    const mk = (id: string, lastSeen: string) =>
+      ({ id, lastSeen, project: undefined, firstSeen: lastSeen, requestCount: 1,
+         charsSaved: 0, tokensSavedEst: 0, cacheReadTokens: 0,
+         jsonlBytes: 0, sidecarBytes: 0 });
+    const sessions = new Map([
+      ['a', mk('a', '2026-10-19T00:00:00Z')],
+      ['b', mk('b', '2026-10-18T00:00:00Z')],
+      ['c', mk('c', '2026-01-01T00:00:00Z')],
+      ['d', mk('d', '2026-01-02T00:00:00Z')],
+    ]);
+    const out = selectSessionsToRemove(
+      sessions,
+      { sessionId: 'a', sessionIds: ['b', 'zzz'], olderThanDays: 30, keepLast: 1, force: false },
+      now,
+    );
+    // a via sessionId, b via sessionIds (zzz silently skipped),
+    // c+d via olderThanDays, b/c/d via keepLast — one merged set.
+    expect([...out].sort()).toEqual(['a', 'b', 'c', 'd']);
   });
 });

@@ -332,8 +332,19 @@ export interface PruneReport {
   jsonlBytesFreed: number;
   sidecarsRemoved: number;
   sidecarBytesFreed: number;
+  /** Orphaned sidecars (unreferenced by any live session + mtime past the
+   *  age cutoff) removed by the sweep. See SPEC-023. */
+  orphansRemoved: number;
+  orphanBytesFreed: number;
   /** True when this was a real run (force=true). False for dry-run. */
   applied: boolean;
+}
+
+/** Digest file accumulating one JSON line per pruned session (and per
+ *  swept orphan sidecar), living next to events.jsonl so PXPIPE_LOG moves
+ *  both together. See SPEC-023. */
+export function pruneDigestPath(eventsFile: string): string {
+  return path.join(path.dirname(eventsFile), 'prune-history.jsonl');
 }
 
 /** Decide which sessions to remove based on the prune options. Pure — no
@@ -381,6 +392,15 @@ export function selectSessionsToRemove(
  * delete the matching 4xx-body sidecars. Atomic: writes to a sibling `.tmp`
  * file with fsync, then renames over the original.
  *
+ * Two extras on top of session deletion (SPEC-023):
+ * - Orphan sweep: sidecar files referenced by NO session in the current
+ *   events.jsonl (their session rotated into events.jsonl.1) with mtime
+ *   older than `olderThanDays` are deleted too. Only runs when
+ *   `olderThanDays` is set — a sessionId-only prune has no age basis.
+ * - Digest: each removed session (and each swept orphan) appends one JSON
+ *   line to prune-history.jsonl before deletion, so aggregate stats
+ *   survive without keeping the raw files. Dry-run writes nothing.
+ *
  * ⚠️ CONCURRENCY: the live proxy's FileTracker is paused (suspend/resume via
  * tracker-coordinator) around the rename so events arriving mid-prune are
  * buffered in memory and flushed into the fresh file — see SPEC-002/SPEC-005.
@@ -424,6 +444,39 @@ export async function prune(
   }
   const sidecarBytesFreed = sidecarsToDelete.reduce((n, s) => n + s.size, 0);
 
+  // Orphan sweep (SPEC-023): unreferenced sidecars whose mtime is past the
+  // age cutoff. The double gate ("no live session references it" AND "mtime
+  // older than cutoff") protects against clock skew and against files the
+  // tracker just wrote but whose event row hasn't landed yet.
+  const orphansToDelete: { path: string; size: number }[] = [];
+  if (typeof opts.olderThanDays === 'number') {
+    const referenced = new Set<string>();
+    for (const set of sidecarsBySession.values()) {
+      for (const p of set) referenced.add(path.resolve(p));
+    }
+    const cutoffMs =
+      now.getTime() - opts.olderThanDays * 24 * 60 * 60 * 1000;
+    let entries: string[] = [];
+    try {
+      entries = fs.readdirSync(paths.sidecarDir);
+    } catch {
+      /* no sidecar dir — nothing to sweep */
+    }
+    for (const name of entries) {
+      const full = path.join(paths.sidecarDir, name);
+      if (referenced.has(path.resolve(full))) continue;
+      try {
+        const st = fs.statSync(full);
+        if (!st.isFile()) continue;
+        if (st.mtimeMs >= cutoffMs) continue;
+        orphansToDelete.push({ path: full, size: st.size });
+      } catch {
+        /* concurrent delete is fine */
+      }
+    }
+  }
+  const orphanBytesFreed = orphansToDelete.reduce((n, s) => n + s.size, 0);
+
   const report: PruneReport = {
     sessionsRemoved: [...toRemove],
     eventsRemoved,
@@ -431,11 +484,13 @@ export async function prune(
     jsonlBytesFreed,
     sidecarsRemoved: sidecarsToDelete.length,
     sidecarBytesFreed,
+    orphansRemoved: orphansToDelete.length,
+    orphanBytesFreed,
     applied: false,
   };
 
   if (!opts.force) return report;
-  if (toRemove.size === 0) {
+  if (toRemove.size === 0 && orphansToDelete.length === 0) {
     report.applied = true;
     return report;
   }
@@ -445,21 +500,45 @@ export async function prune(
   // Pause FileTracker around the rename so events arriving during the rewrite
   // window don't get lost (they'd otherwise hit a stale fd pointing at the
   // pre-rename inode, see src/node.ts:FileTracker.resume).
-  const tracker = getActiveTracker();
-  if (tracker) {
-    const suspend = tracker.suspend?.bind(tracker);
-    const resume = tracker.resume?.bind(tracker);
-    try {
-      if (suspend) await suspend();
+  if (toRemove.size > 0) {
+    const tracker = getActiveTracker();
+    if (tracker) {
+      const suspend = tracker.suspend?.bind(tracker);
+      const resume = tracker.resume?.bind(tracker);
+      try {
+        if (suspend) await suspend();
+        await rewriteEventsFile(paths.eventsFile, toRemove);
+      } finally {
+        if (resume) resume();
+      }
+    } else {
       await rewriteEventsFile(paths.eventsFile, toRemove);
-    } finally {
-      if (resume) resume();
     }
-  } else {
-    await rewriteEventsFile(paths.eventsFile, toRemove);
   }
 
-  for (const { path: p } of sidecarsToDelete) {
+  // Digest before deletion (SPEC-023): one appendFileSync for the whole
+  // batch. Best-effort — a failed digest write must not abort the cleanup.
+  const digestLines: string[] = [];
+  const prunedAt = now.toISOString();
+  for (const id of toRemove) {
+    const s = sessions.get(id);
+    if (!s) continue;
+    digestLines.push(JSON.stringify({ pruned_at: prunedAt, ...s }));
+  }
+  for (const o of orphansToDelete) {
+    digestLines.push(
+      JSON.stringify({ pruned_at: prunedAt, id: '<orphan>', path: o.path, sidecarBytes: o.size }),
+    );
+  }
+  if (digestLines.length > 0) {
+    try {
+      fs.appendFileSync(pruneDigestPath(paths.eventsFile), digestLines.join('\n') + '\n');
+    } catch {
+      /* best-effort — cleanup proceeds without the audit trail */
+    }
+  }
+
+  for (const { path: p } of [...sidecarsToDelete, ...orphansToDelete]) {
     try {
       fs.unlinkSync(p);
     } catch {

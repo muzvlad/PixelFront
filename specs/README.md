@@ -32,6 +32,13 @@
 | [SPEC-014](./SPEC-014-vendor-sri-integrity.md) | SRI-хэши для vendored UI | 🟢 Низкий | [📄](./SPEC-014-vendor-sri-integrity.md) |
 | [SPEC-015](./SPEC-015-configurable-log-level.md) | Конфигурируемый log-level | 🟢 Низкий | [📄](./SPEC-015-configurable-log-level.md) |
 | [SPEC-016](./SPEC-016-prune-and-sidecar-docs.md) | Документация PRUNE и sidecar | 🟢 Низкий | [📄](./SPEC-016-prune-and-sidecar-docs.md) |
+| [SPEC-017](./SPEC-017-nvidia-kimi-bigpickle-providers.md) | Провайдеры NVIDIA NIM (Kimi, Nemotron) и Big Pickle | 🟡 Средний | [📄](./SPEC-017-nvidia-kimi-bigpickle-providers.md) |
+| [SPEC-018](./SPEC-018-mimo-v2.6-compression.md) | Компрессия MiMo V2.6 (Pro/Flash/Ultraspeed) | 🟡 Средний | [📄](./SPEC-018-mimo-v2.6-compression.md) |
+| [SPEC-019](./SPEC-019-csp-unsafe-eval-regression.md) | Убрать CSP 'unsafe-eval' для htmx/Alpine | 🔴 Высокий | [📄](./SPEC-019-csp-unsafe-eval-regression.md) |
+| [SPEC-020](./SPEC-020-background-failure-resilience.md) | Устойчивость прокси к фоновым сбоям | 🟡 Средний | [📄](./SPEC-020-background-failure-resilience.md) |
+| [SPEC-021](./SPEC-021-colored-russian-logs.md) | Цветные и категоризированные логи запуска | 🟢 Низкий | [📄](./SPEC-021-colored-russian-logs.md) |
+| [SPEC-022](./SPEC-022-lora-font-dashboard.md) | Шрифт Lora в дашборде PixelFront | 🟢 Низкий | [📄](./SPEC-022-lora-font-dashboard.md) |
+| [SPEC-023](./SPEC-023-startup-prune-digest.md) | Startup prune + digest | 🟡 Средний | [📄](./SPEC-023-startup-prune-digest.md) |
 
 ## Рекомендованный порядок выполнения
 
