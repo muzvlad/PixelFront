@@ -656,6 +656,10 @@ const DYNAMIC_BLOCK_TAGS = [
   'git_status',
   'directoryStructure',
   'system-reminder',
+  'name',
+  'description',
+  'location',
+  'skill',
 ] as const;
 
 // Known-static slab tags — suppresses first-sighting `unknownStaticTags` noise
