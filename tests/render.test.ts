@@ -1504,6 +1504,32 @@ describe('transform', () => {
     expect(info.unknownStaticTags).not.toContain('env');
   });
 
+  it('does not flag the opencode <available_skills> block (skill/name/description/location)', async () => {
+    // opencode verbose mode emits: <available_skills><skill><name>..</name>..
+    // </skill></available_skills>. The inner tags are per-turn dynamic, the
+    // wrapper is known-static — neither may reach unknownStaticTags.
+    const sys =
+      'claude.md\n'.repeat(400) +
+      '<available_skills>\n' +
+      '  <skill>\n' +
+      '    <name>my-skill</name>\n' +
+      '    <description>Does a thing</description>\n' +
+      '    <location>C:\\skills\\my-skill\\SKILL.md</location>\n' +
+      '  </skill>\n' +
+      '</available_skills>\n' +
+      '<env>\nWorking directory: /tmp\n</env>';
+    const body = new TextEncoder().encode(
+      JSON.stringify({
+        model: 'claude',
+        messages: [{ role: 'user', content: 'hi' }],
+        system: sys,
+      }),
+    );
+    const { info } = await transformRequest(body);
+    expect(info.unknownStaticTags).toBeUndefined();
+    expect(info.dynamicBlockCount).toBeGreaterThan(0);
+  });
+
   it('does not flag <types> as an unknown tag (it lives in KNOWN_STATIC_TAGS)', async () => {
     const sys =
       'claude.md\n'.repeat(400) +
