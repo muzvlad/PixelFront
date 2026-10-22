@@ -138,6 +138,29 @@ Rows without a trustworthy cacheable-prefix probe contribute zero savings rather
 
 ---
 
+## Providers Without `count_tokens` (Estimate Rows)
+
+Some providers (opencode GO zen/go, `api.minimaxi.com`) do not implement `/v1/messages/count_tokens`. For those rows pxpipe builds the text counterfactual itself:
+
+```text
+baseline_estimate = input_tokens + imagedChars / 3.7 - imagePixels / 750
+```
+
+That number is a raw token count with no cache pricing attached. Crediting it as-is would price the imagined text request at the full 1.0x rate while the real request paid 0.1x for its cached prefix - the provider's cache discount would land in pxpipe's savings column (measured on a real week of traffic: 9.9x overclaim, "96% saved" on a turn that actually cost 13k tokens).
+
+So the estimate is priced with the cache state the real request showed:
+
+```text
+realized_rate = actual_eff / (input_tokens + cc + cr)
+baseline_eff   = baseline_estimate * realized_rate
+```
+
+The text counterfactual holds the same content, so it would have been cached the same way; scaling every bucket proportionally to the mix the provider billed (`input` at 1.0x, `cc` at 1.25x, `cr` at 0.1x) is the assumption-free way to say that. Cold turns (`cr = 0`) keep the full rate, warm turns get the cache-read rate, cache writes cost more on both sides.
+
+Rows with no usage block at all credit nothing.
+
+---
+
 ## Worked Examples
 
 Assume a request whose original text baseline is `30,000` input tokens. Of those, `28,000` are before the cache-control marker, so `coldTail = 2,000`. pxpipe renders that prefix to `3,000` image tokens.

@@ -130,3 +130,46 @@ export function computeActualInputEff(
 ): number {
   return inputTokens + cc * CACHE_CREATE_RATE + cr * CACHE_READ_RATE;
 }
+
+/**
+ * Фактическая средняя ставка, по которой провайдер посчитал prompt этого хода:
+ * eff-токены / билл-токены. Кэш-чтение и кэш-запись уже взвешены, поэтому
+ * ставка несёт в себе наблюдённое состояние кэша.
+ */
+export function computeRealizedInputRate(
+  inputTokens: number,
+  cc: number,
+  cr: number,
+): number {
+  const billed = inputTokens + cc + cr;
+  if (billed <= 0) return 1;
+  return computeActualInputEff(inputTokens, cc, cr) / billed;
+}
+
+/**
+ * Cache-aware цена оценочного текстового baseline (провайдер без count_tokens).
+ *
+ * Оценка — это полный текстовый запрос в токенах, посчитанный без знания о
+ * кэше. Если отдать её в счёт как есть, скидка провайдера за кэш-чтение
+ * попадёт в кредит pxpipe. Поэтому оцениваем её той же структурой кэша, которую
+ * показал реальный запрос: текстовый контрфакт состоял бы из того же контента
+ * и кэшировался бы так же.
+ *
+ *   rate = actual_eff / (input + cc + cr)
+ *   baseline_eff = baseline_estimate * rate
+ *
+ * Эквивалентно: бакеты масштабируются пропорционально выставленному биллу
+ * (`input`→1.0x, `cc`→1.25x, `cr`→0.1x), т.е. контрфакт повторяет ту же
+ * структуру кэша, что показал реальный запрос.
+ */
+export function computeEstimatedBaselineInputEff(
+  baselineEstimate: number,
+  inputTokens: number,
+  cc: number,
+  cr: number,
+): number {
+  if (baselineEstimate <= 0) return 0;
+  // Usage не пришёл — измерить цену контрфактива нечем, кредитуем ноль.
+  if (inputTokens + cc + cr <= 0) return 0;
+  return baselineEstimate * computeRealizedInputRate(inputTokens, cc, cr);
+}

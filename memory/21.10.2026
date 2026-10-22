@@ -1,0 +1,61 @@
+# 21.10.2026
+
+## Спека 003: cache-aware оценка baseline на estimate-строках (GO zen/go, minimax-m3)
+
+Проблема: у провайдеров без `/v1/messages/count_tokens` (opencode GO zen/go,
+api.minimaxi.com) baseline считается pxpipe-оценкой текста и кредитовался
+cache-blind (как есть, 1.0x на токен). Реальный запрос при этом платит 0.1x за
+кешированный префикс → скидка провайдера уходила в кредит pxpipe.
+
+Факт по логу `~/.pxpipe/events.jsonl` (4276 estimate-строк, /v1/messages):
+факт входа 57.2M, saved было 1337.8M (x23.4 к факту, «96% сэкономлено»),
+стало 135.0M (x2.4). Завышение снято в 9.9x. Общий итог по логу: saved
+1401.1M → 166.9M (x14.5 → x1.72 к факту).
+
+### Решение
+
+`src/core/baseline.ts`:
+- `computeRealizedInputRate(input, cc, cr)` = actual_eff / (input+cc+cr) —
+  наблюдённая смешанная ставка, несёт состояние кэша.
+- `computeEstimatedBaselineInputEff(baselineEstimate, input, cc, cr)` =
+  `baseline * realized_rate`; при отсутствии usage — 0 (ничего не измерено →
+  ничего не заявляем).
+
+Пропорциональное масштабирование бакета (`input`→1.0x, `cc`→1.25x, `cr`→0.1x)
+эквивалентно формуле; ветка `probe_status='ok'` (реальный count_tokens) не
+трогаем — она уже cache-aware через `computeBaselineInputEff`.
+
+Точки правки: `src/dashboard.ts` (ветка `estimate` в update() и replay()),
+`src/sessions.ts` (то же в сводке сессии), `tests/savings-honesty.test.ts`
+(+6 инвариантов), `docs/CACHING_AND_SAVINGS.md` (раздел «Providers Without
+count_tokens»).
+
+### Проверка
+
+- `node node_modules\typescript\bin\tsc --noEmit` — чисто.
+- `node node_modules\vitest\vitest.mjs run` — 43 файла / 735 тестов passed.
+- Прокси пересобран (`node scripts/build.mjs`) и перезапущен (PID 15932,
+  порт 47821). Дашборд: текущая сессия saved 63 694 при baseline 96 895;
+  топ-сессии 28.8M / 28.3M / 17.3M токенов.
+
+### Технические заметки
+
+- `npm`/`npx` в этой оболочке блокируются ExecutionPolicy (PSSecurityException) —
+  звать `node node_modules\vitest\vitest.mjs` и `node node_modules\typescript\bin\tsc`.
+- Локальная таймзона машины UTC-3, события в `events.jsonl` лежат в UTC:
+  «день» считать со сдвигом +3h от UTC-даты.
+- Лейн mimo (`/v1/chat/completions`) — OpenAI-семантика: `cached_tokens` это
+  ПОДМНОЖЕСТВО `input_tokens`, а не отдельный бакет (в отличие от
+  `cache_read_tokens` у Anthropic). Кэш-хит по нему = cached/input (~93%),
+  а не cached/(input+cr+cached).
+- Upstream (zen/go) биллит изображения minimax примерно на 25% дороже
+  pxpipe-оценки px/750 — база оценки занижена, экономия чуть завышена.
+- `sessions.ts` не считает экономию для GPT-строк (в глобальных тотах
+  дашборда они учтены) — старое расхождение, вне спеки 003.
+
+### Открыто
+
+- Коммит не делал (пользователь не просил). Рабочее дерево содержит правку
+  спеки 003.
+- Отдельно стоит починить расхождение `sessions.ts` vs глобальные тоты
+  (GPT-лейн = 0 в сводке сессий).

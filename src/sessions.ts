@@ -33,6 +33,7 @@ import { getActiveTracker } from './tracker-coordinator.js';
 import {
   computeActualInputEff,
   computeBaselineInputEff,
+  computeEstimatedBaselineInputEff,
   deriveBaselineWarmth,
 } from './core/baseline.js';
 
@@ -205,9 +206,11 @@ export async function aggregateSessions(
       );
       // Estimate rows (provider lacks count_tokens) have no cacheable probe and
       // no cache pricing — computeBaselineInputEff would fold to actual (zero
-      // savings). The estimate is already raw/cache-blind, so credit it as-is.
+      // savings). The estimate is a raw token count, so price it with the same
+      // cache state the real request showed: otherwise the provider's cache
+      // discount lands in pxpipe's savings.
       const baselineEff = ev.baseline_probe_status === 'estimate'
-        ? baseline
+        ? computeEstimatedBaselineInputEff(baseline, inp, cc, cr)
         : computeBaselineInputEff(
             baseline,
             cacheable,

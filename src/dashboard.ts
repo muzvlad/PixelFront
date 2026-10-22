@@ -35,6 +35,7 @@ import type { TrackEvent } from './core/tracker.js';
 import {
   computeActualInputEff,
   computeBaselineInputEff,
+  computeEstimatedBaselineInputEff,
   deriveBaselineWarmth,
 } from './core/baseline.js';
 import {
@@ -691,11 +692,13 @@ export class DashboardState {
       );
       // Estimate rows: no cacheable probe exists (provider lacks count_tokens),
       // and computeBaselineInputEff would return the actual cost → zero savings.
-      // The estimate is already cache-blind/raw, so credit it as-is.
+      // The estimate is a raw token count, so it must be priced with the same
+      // cache state the real request showed - otherwise the provider's cache
+      // discount is credited to pxpipe as savings.
       const estimateBaseline = info?.baselineProbeStatus === 'estimate';
       baselineInputEff = creditSaving
         ? estimateBaseline
-          ? (baseline as number)
+          ? computeEstimatedBaselineInputEff(baseline as number, inp, cc, cr)
           : computeBaselineInputEff(
               baseline as number,
               cacheable,
@@ -1009,7 +1012,7 @@ export class DashboardState {
         const estimateBaseline = probeStatus === 'estimate';
         baselineInputEff = creditSaving
           ? estimateBaseline
-            ? (baseline as number)
+            ? computeEstimatedBaselineInputEff(baseline as number, inp, cc, cr)
             : computeBaselineInputEff(
                 baseline as number,
                 cacheable,

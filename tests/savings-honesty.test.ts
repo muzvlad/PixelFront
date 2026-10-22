@@ -19,7 +19,14 @@
  * Run just this file:  pnpm vitest run tests/savings-honesty.test.ts
  */
 import { describe, expect, it } from 'vitest';
-import { computeBaselineInputEff, computeActualInputEff, CACHE_CREATE_RATE, CACHE_READ_RATE } from '../src/core/baseline.js';
+import {
+  computeBaselineInputEff,
+  computeActualInputEff,
+  computeEstimatedBaselineInputEff,
+  computeRealizedInputRate,
+  CACHE_CREATE_RATE,
+  CACHE_READ_RATE,
+} from '../src/core/baseline.js';
 import {
   computeOpenAIBaselineInputEff,
   computeOpenAIActualInputEff,
@@ -137,6 +144,74 @@ describe('Anthropic savings honesty (cache-create / cache-read aware)', () => {
       const cold = computeBaselineInputEff(baseline, cacheable, input, cc, cr, false, prev);
       expect(cold).toBeGreaterThanOrEqual(0);
       expect(cold).toBeLessThanOrEqual(baseline * 1.25 + 1e-9); // can't fabricate a bigger counterfactual
+    });
+  });
+});
+
+// ===========================================================================
+// Estimate rows: the provider has no count_tokens, so the text counterfactual
+// is a pxpipe-side token estimate. Crediting it raw would hand the provider's
+// cache discount to pxpipe - the same overclaim the 'ok' path guards against.
+describe('estimated baseline (no count_tokens) is priced with the observed cache state', () => {
+  const baselines = [0, 1_000, 30_000, 500_000];
+  const inputs = [0, 100, 10_000];
+  const ccs = [0, 20_000];
+  const crs = [0, 20_000, 200_000];
+
+  const sweep = (f: (b: number, i: number, cc: number, cr: number) => void) => {
+    for (const b of baselines) for (const i of inputs) for (const cc of ccs) for (const cr of crs) f(b, i, cc, cr);
+  };
+
+  it('realized rate stays inside the published price band (0.1x .. 1.25x)', () => {
+    sweep((b, i, cc, cr) => {
+      if (i + cc + cr <= 0) return;
+      const rate = computeRealizedInputRate(i, cc, cr);
+      expect(rate).toBeGreaterThanOrEqual(CACHE_READ_RATE - 1e-9);
+      expect(rate).toBeLessThanOrEqual(CACHE_CREATE_RATE + 1e-9);
+    });
+  });
+
+  it('a warm turn NEVER claims more savings than the same turn with a fresh cache write', () => {
+    sweep((b, i, cc, cr) => {
+      if (!(b > 0 && i + cc + cr > 0)) return;
+      const billed = i + cc + cr;
+      // Cold counterpart: the very same request, but the whole prefix is
+      // (re)written at the cache-create rate instead of read at 0.1x.
+      const coldPrice = b * ((i + CACHE_CREATE_RATE * (cc + cr)) / billed);
+      expect(computeEstimatedBaselineInputEff(b, i, cc, cr)).toBeLessThanOrEqual(coldPrice + 1e-9);
+    });
+  });
+
+  it('the counterfactual can never exceed re-creating the whole baseline at 1.25x', () => {
+    sweep((b, i, cc, cr) => {
+      if (!(b > 0 && i + cc + cr > 0)) return;
+      const eff = computeEstimatedBaselineInputEff(b, i, cc, cr);
+      expect(eff).toBeGreaterThanOrEqual(0);
+      expect(eff).toBeLessThanOrEqual(b * CACHE_CREATE_RATE + 1e-9);
+    });
+  });
+
+  it('the cache-blind raw estimate is NEVER credited when there is no cache write', () => {
+    sweep((b, i, cc, cr) => {
+      if (!(b > 0 && i + cc + cr > 0 && cc === 0)) return;
+      const eff = computeEstimatedBaselineInputEff(b, i, cc, cr);
+      expect(eff).toBeLessThanOrEqual(b + 1e-9);
+      if (cr > 0) expect(eff).toBeLessThan(b + 1e-9); // strictly below the raw full-rate price
+    });
+  });
+
+  it('no usage at all ⇒ no credit (nothing was measured, nothing is claimed)', () => {
+    expect(computeEstimatedBaselineInputEff(500_000, 0, 0, 0)).toBe(0);
+    expect(computeEstimatedBaselineInputEff(0, 1_000, 0, 0)).toBe(0);
+  });
+
+  it('prices the baseline with the SAME bucket mix the provider billed (proportional)', () => {
+    sweep((b, i, cc, cr) => {
+      if (!(b > 0 && i + cc + cr > 0)) return;
+      const billed = i + cc + cr;
+      const proportional =
+        b * ((i / billed) * 1.0 + (cc / billed) * CACHE_CREATE_RATE + (cr / billed) * CACHE_READ_RATE);
+      expect(computeEstimatedBaselineInputEff(b, i, cc, cr)).toBeCloseTo(proportional, 6);
     });
   });
 });
